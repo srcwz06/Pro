@@ -1,7 +1,7 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 -- =======================================================
--- [เธฃเธฐเธเธ Master Cleanup เธเนเธญเธเธเธฑเธเธเธญเธกเธเธตเนเธชเธเธฃเธดเธเธ•เนเนเธฅเธฐเธเธฑเธเธเนเธฒเธ]
+-- [ระบบ Master Cleanup ป้องกันซอมบี้สคริปต์และบัคค้าง]
 -- =======================================================
 if _G.UtilityHubCleanup then
     pcall(_G.UtilityHubCleanup)
@@ -40,7 +40,7 @@ local function isPlayerCharacter(part)
     return false
 end
 
--- [เธเธฑเธเธเนเธเธฑเธเธฅเนเธฒเธเธเธฒเธ]
+-- [ฟังก์ชันล้างบาง]
 _G.UtilityHubCleanup = function()
     for _, conn in ipairs(MyConnections) do
         if conn then pcall(function() conn:Disconnect() end) end
@@ -81,7 +81,7 @@ _G.UtilityHubCleanup = function()
 end
 
 -- =======================================================
--- [เธชเธฃเนเธฒเธ UI เนเธฅเธฐเธซเธเนเธฒเธ•เนเธฒเธเน€เธกเธเธน]
+-- [สร้าง UI และหน้าต่างเมนู]
 -- =======================================================
 local function getSafeParent()
     if gethui then return gethui() end
@@ -119,7 +119,7 @@ local Colors = {
 }
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 230, 0, 950) -- เธเธขเธฒเธขเธเธเธฒเธ”เธฃเธญเธเธฃเธฑเธเธเธธเนเธกเธขเธดเธเธ”เธฑเธเธซเธเนเธฒ
+Main.Size = UDim2.new(0, 230, 0, 950) -- ขยายขนาดรองรับปุ่มยิงดักหน้า
 Main.Position = UDim2.new(0.5, -115, 0.1, 0)
 Main.BackgroundColor3 = Colors.Bg
 Main.BorderSizePixel = 0
@@ -131,7 +131,7 @@ local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 45, 0, 45)
 OpenBtn.Position = UDim2.new(0, 15, 0, 15)
 OpenBtn.BackgroundColor3 = Colors.Panel
-OpenBtn.Text = "๐ ๏ธ"
+OpenBtn.Text = "🛠️"
 OpenBtn.TextSize = 20
 OpenBtn.Visible = false
 OpenBtn.Parent = ScreenGui
@@ -141,7 +141,7 @@ local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 2)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "โ–"
+CloseBtn.Text = "➖"
 CloseBtn.TextColor3 = Colors.Text
 CloseBtn.TextSize = 14
 CloseBtn.Font = Enum.Font.GothamBold
@@ -168,7 +168,7 @@ end))
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -30, 0, 35)
 Title.BackgroundTransparency = 1
-Title.Text = " ๐ ๏ธ Utility Hub"
+Title.Text = " 🛠️ Utility Hub"
 Title.TextColor3 = Colors.ButtonESP
 Title.TextSize = 13
 Title.Font = Enum.Font.GothamBold
@@ -180,14 +180,14 @@ local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, -24, 0, 20)
 Status.Position = UDim2.new(0, 12, 0, 40)
 Status.BackgroundTransparency = 1
-Status.Text = "เธฃเธฐเธเธเธเธฃเนเธญเธกเนเธเนเธเธฒเธ!"
+Status.Text = "ระบบพร้อมใช้งาน!"
 Status.TextColor3 = Colors.Green
 Status.TextSize = 11
 Status.Font = Enum.Font.Gotham
 Status.Parent = Main
 
 -- =======================================================
--- [เธฃเธฐเธเธเธเธฑเธ”เธเธฒเธฃเธ•เธณเนเธซเธเนเธเนเธฅเธฐเธเธธเนเธกเธฅเธฑเธ”]
+-- [ระบบจัดการตำแหน่งและปุ่มลัด]
 -- =======================================================
 local currentY = 70
 local function getY()
@@ -247,31 +247,31 @@ local function createHotkeyRow(yPos, text, bindKeyName, bgColor)
 end
 
 -- =======================================================
--- เธชเธฃเนเธฒเธเธเธธเนเธกเน€เธกเธเธนเธซเธฅเธฑเธ
+-- สร้างปุ่มเมนูหลัก
 -- =======================================================
 local ESPBtn = Instance.new("TextButton", Main)
 ESPBtn.Size = UDim2.new(1, -24, 0, 35); ESPBtn.Position = UDim2.new(0, 12, 0, getY()); ESPBtn.BackgroundColor3 = Colors.ButtonESP
-ESPBtn.Text = "๐‘๏ธ เน€เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ (ESP+เน€เธฅเธทเธญเธ”)"; ESPBtn.TextColor3 = Colors.Text; ESPBtn.TextSize = 12; ESPBtn.Font = Enum.Font.GothamBold
+ESPBtn.Text = "👁️ เปิดมองทะลุ (ESP+เลือด)"; ESPBtn.TextColor3 = Colors.Text; ESPBtn.TextSize = 12; ESPBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", ESPBtn).CornerRadius = UDim.new(0, 6)
 
 local CorpseESPBtn = Instance.new("TextButton", Main)
 CorpseESPBtn.Size = UDim2.new(1, -24, 0, 35); CorpseESPBtn.Position = UDim2.new(0, 12, 0, getY()); CorpseESPBtn.BackgroundColor3 = Colors.Corpse
-CorpseESPBtn.Text = "๐’€ เน€เธเธดเธ”เธกเธญเธเธจเธ (Loot)"; CorpseESPBtn.TextColor3 = Colors.Text; CorpseESPBtn.TextSize = 12; CorpseESPBtn.Font = Enum.Font.GothamBold
+CorpseESPBtn.Text = "💀 เปิดมองศพ (Loot)"; CorpseESPBtn.TextColor3 = Colors.Text; CorpseESPBtn.TextSize = 12; CorpseESPBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", CorpseESPBtn).CornerRadius = UDim.new(0, 6)
 
 local WeaponESPBtn = Instance.new("TextButton", Main)
 WeaponESPBtn.Size = UDim2.new(1, -24, 0, 35); WeaponESPBtn.Position = UDim2.new(0, 12, 0, getY()); WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
-WeaponESPBtn.Text = "๐”ซ เธเธญเธเธเธทเนเธญเธเธทเธ/เนเธญเน€เธ—เธกเธเธเธญเธทเนเธ"; WeaponESPBtn.TextColor3 = Colors.Text; WeaponESPBtn.TextSize = 12; WeaponESPBtn.Font = Enum.Font.GothamBold
+WeaponESPBtn.Text = "🔫 บอกชื่อปืน/ไอเทมคนอื่น"; WeaponESPBtn.TextColor3 = Colors.Text; WeaponESPBtn.TextSize = 12; WeaponESPBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", WeaponESPBtn).CornerRadius = UDim.new(0, 6)
 
 local DayBtn = Instance.new("TextButton", Main)
 DayBtn.Size = UDim2.new(1, -24, 0, 35); DayBtn.Position = UDim2.new(0, 12, 0, getY()); DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
-DayBtn.Text = "โ€๏ธ เธเธฅเธฒเธเธงเธฑเธ+เธชเธงเนเธฒเธเธ•เธฅเธญเธ”"; DayBtn.TextColor3 = Colors.Text; DayBtn.TextSize = 12; DayBtn.Font = Enum.Font.GothamBold
+DayBtn.Text = "☀️ กลางวัน+สว่างตลอด"; DayBtn.TextColor3 = Colors.Text; DayBtn.TextSize = 12; DayBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", DayBtn).CornerRadius = UDim.new(0, 6)
 
 local AutoDelAllBtn = Instance.new("TextButton", Main)
 AutoDelAllBtn.Size = UDim2.new(1, -24, 0, 35); AutoDelAllBtn.Position = UDim2.new(0, 12, 0, getY()); AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-AutoDelAllBtn.Text = "๐’ฅ เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ” (Delete All)"; AutoDelAllBtn.TextColor3 = Colors.Text; AutoDelAllBtn.TextSize = 12; AutoDelAllBtn.Font = Enum.Font.GothamBold
+AutoDelAllBtn.Text = "💥 ลบแมพทั้งหมด (Delete All)"; AutoDelAllBtn.TextColor3 = Colors.Text; AutoDelAllBtn.TextSize = 12; AutoDelAllBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", AutoDelAllBtn).CornerRadius = UDim.new(0, 6)
 
 local SliderFrame = Instance.new("Frame", Main)
@@ -281,17 +281,17 @@ local SliderFill = Instance.new("Frame", SliderFrame)
 SliderFill.Size = UDim2.new(0, 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(14, 165, 233); SliderFill.BorderSizePixel = 0
 Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 6)
 local SliderText = Instance.new("TextLabel", SliderFrame)
-SliderText.Size = UDim2.new(1, 0, 1, 0); SliderText.BackgroundTransparency = 1; SliderText.Text = "๐ เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ: 16"
+SliderText.Size = UDim2.new(1, 0, 1, 0); SliderText.BackgroundTransparency = 1; SliderText.Text = "🏃 ความเร็ววิ่ง: 16"
 SliderText.TextColor3 = Colors.Text; SliderText.TextSize = 12; SliderText.Font = Enum.Font.GothamBold; SliderText.ZIndex = 2
 local SliderBtn = Instance.new("TextButton", SliderFrame)
 SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.BackgroundTransparency = 1; SliderBtn.Text = ""; SliderBtn.ZIndex = 3
 
-local AimBtn, _ = createHotkeyRow(getY(), "๐ฏ เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒ Aimbot", "Aim", Colors.ButtonAim)
-local HardLockBtn, _ = createHotkeyRow(getY(), "๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข", "Lock", Color3.fromRGB(245, 158, 11))
+local AimBtn, _ = createHotkeyRow(getY(), "🎯 ระบบล็อคเป้า Aimbot", "Aim", Colors.ButtonAim)
+local HardLockBtn, _ = createHotkeyRow(getY(), "🔒 ปุ่มล็อคเจาะจงเป้าหมาย", "Lock", Color3.fromRGB(245, 158, 11))
 
 local FOVBtn = Instance.new("TextButton", Main)
 FOVBtn.Size = UDim2.new(1, -24, 0, 35); FOVBtn.Position = UDim2.new(0, 12, 0, getY()); FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-FOVBtn.Text = "โญ• เน€เธเธดเธ”เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ (FOV)"; FOVBtn.TextColor3 = Colors.Text; FOVBtn.TextSize = 12; FOVBtn.Font = Enum.Font.GothamBold
+FOVBtn.Text = "⭕ เปิดวงกลมล็อคเป้า (FOV)"; FOVBtn.TextColor3 = Colors.Text; FOVBtn.TextSize = 12; FOVBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", FOVBtn).CornerRadius = UDim.new(0, 6)
 
 local FOVSliderFrame = Instance.new("Frame", Main)
@@ -301,25 +301,25 @@ local FOVSliderFill = Instance.new("Frame", FOVSliderFrame)
 FOVSliderFill.Size = UDim2.new(0.5, 0, 1, 0); FOVSliderFill.BackgroundColor3 = Color3.fromRGB(139, 92, 246); FOVSliderFill.BorderSizePixel = 0
 Instance.new("UICorner", FOVSliderFill).CornerRadius = UDim.new(0, 6)
 local FOVSliderText = Instance.new("TextLabel", FOVSliderFrame)
-FOVSliderText.Size = UDim2.new(1, 0, 1, 0); FOVSliderText.BackgroundTransparency = 1; FOVSliderText.Text = "โญ• เธเธเธฒเธ”เธงเธ FOV: 150"
+FOVSliderText.Size = UDim2.new(1, 0, 1, 0); FOVSliderText.BackgroundTransparency = 1; FOVSliderText.Text = "⭕ ขนาดวง FOV: 150"
 FOVSliderText.TextColor3 = Colors.Text; FOVSliderText.TextSize = 12; FOVSliderText.Font = Enum.Font.GothamBold; FOVSliderText.ZIndex = 2
 local FOVSliderBtn = Instance.new("TextButton", FOVSliderFrame)
 FOVSliderBtn.Size = UDim2.new(1, 0, 1, 0); FOVSliderBtn.BackgroundTransparency = 1; FOVSliderBtn.Text = ""; FOVSliderBtn.ZIndex = 3
 
 local AimPartBtn = Instance.new("TextButton", Main)
 AimPartBtn.Size = UDim2.new(1, -24, 0, 35); AimPartBtn.Position = UDim2.new(0, 12, 0, getY()); AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธฅเธณเธ•เธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.TextColor3 = Colors.Text; AimPartBtn.TextSize = 12; AimPartBtn.Font = Enum.Font.GothamBold
+AimPartBtn.Text = "🎯 เล็ง: ลำตัว (สลับเป้า)"; AimPartBtn.TextColor3 = Colors.Text; AimPartBtn.TextSize = 12; AimPartBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", AimPartBtn).CornerRadius = UDim.new(0, 6)
 
 local WallCheckBtn = Instance.new("TextButton", Main)
 WallCheckBtn.Size = UDim2.new(1, -24, 0, 35); WallCheckBtn.Position = UDim2.new(0, 12, 0, getY()); WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธ”เน (เธเธฅเธดเธเธชเธฅเธฑเธ)"; WallCheckBtn.TextColor3 = Colors.Text; WallCheckBtn.TextSize = 12; WallCheckBtn.Font = Enum.Font.GothamBold
+WallCheckBtn.Text = "🧱 ทะลุกำแพง: ได้ (คลิกสลับ)"; WallCheckBtn.TextColor3 = Colors.Text; WallCheckBtn.TextSize = 12; WallCheckBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", WallCheckBtn).CornerRadius = UDim.new(0, 6)
 
--- [เนเธซเธกเน] เธเธธเนเธกเธขเธดเธเธ”เธฑเธเธซเธเนเธฒ Prediction
+-- [ใหม่] ปุ่มยิงดักหน้า Prediction
 local PredictionBtn = Instance.new("TextButton", Main)
 PredictionBtn.Size = UDim2.new(1, -24, 0, 35); PredictionBtn.Position = UDim2.new(0, 12, 0, getY()); PredictionBtn.BackgroundColor3 = Colors.Pred
-PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เธเธดเธ”"; PredictionBtn.TextColor3 = Colors.Text; PredictionBtn.TextSize = 12; PredictionBtn.Font = Enum.Font.GothamBold
+PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): ปิด"; PredictionBtn.TextColor3 = Colors.Text; PredictionBtn.TextSize = 12; PredictionBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", PredictionBtn).CornerRadius = UDim.new(0, 6)
 
 local PredSliderFrame = Instance.new("Frame", Main)
@@ -329,48 +329,48 @@ local PredSliderFill = Instance.new("Frame", PredSliderFrame)
 PredSliderFill.Size = UDim2.new(0.5, 0, 1, 0); PredSliderFill.BackgroundColor3 = Colors.Pred; PredSliderFill.BorderSizePixel = 0
 Instance.new("UICorner", PredSliderFill).CornerRadius = UDim.new(0, 6)
 local PredSliderText = Instance.new("TextLabel", PredSliderFrame)
-PredSliderText.Size = UDim2.new(1, 0, 1, 0); PredSliderText.BackgroundTransparency = 1; PredSliderText.Text = "๐”ฎ เธเนเธฒเธ”เธฑเธเธซเธเนเธฒเธเธฃเธฐเธชเธธเธ: 0.1"
+PredSliderText.Size = UDim2.new(1, 0, 1, 0); PredSliderText.BackgroundTransparency = 1; PredSliderText.Text = "🔮 ค่าดักหน้ากระสุน: 0.1"
 PredSliderText.TextColor3 = Colors.Text; PredSliderText.TextSize = 12; PredSliderText.Font = Enum.Font.GothamBold; PredSliderText.ZIndex = 2
 local PredSliderBtn = Instance.new("TextButton", PredSliderFrame)
 PredSliderBtn.Size = UDim2.new(1, 0, 1, 0); PredSliderBtn.BackgroundTransparency = 1; PredSliderBtn.Text = ""; PredSliderBtn.ZIndex = 3
 
 local AutoShootBtn = Instance.new("TextButton", Main)
 AutoShootBtn.Size = UDim2.new(1, -24, 0, 35); AutoShootBtn.Position = UDim2.new(0, 12, 0, getY()); AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เธเธดเธ”"; AutoShootBtn.TextColor3 = Colors.Text; AutoShootBtn.TextSize = 12; AutoShootBtn.Font = Enum.Font.GothamBold
+AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: ปิด"; AutoShootBtn.TextColor3 = Colors.Text; AutoShootBtn.TextSize = 12; AutoShootBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", AutoShootBtn).CornerRadius = UDim.new(0, 6)
 
-local CreatePoleBtn, _ = createHotkeyRow(getY(), "๐งฑ เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ", "Pole", Color3.fromRGB(16, 185, 129))
+local CreatePoleBtn, _ = createHotkeyRow(getY(), "🧱 โหมดสร้างเสาปีน", "Pole", Color3.fromRGB(16, 185, 129))
 
 local TracersBtn = Instance.new("TextButton", Main)
 TracersBtn.Size = UDim2.new(1, -24, 0, 35); TracersBtn.Position = UDim2.new(0, 12, 0, getY()); TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
-TracersBtn.Text = "๐งถ เน€เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ (Tracers)"; TracersBtn.TextColor3 = Colors.Text; TracersBtn.TextSize = 12; TracersBtn.Font = Enum.Font.GothamBold
+TracersBtn.Text = "🧶 เปิดเส้นชี้เป้า (Tracers)"; TracersBtn.TextColor3 = Colors.Text; TracersBtn.TextSize = 12; TracersBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", TracersBtn).CornerRadius = UDim.new(0, 6)
 
 local TracerModeBtn = Instance.new("TextButton", Main)
 TracerModeBtn.Size = UDim2.new(1, -24, 0, 35); TracerModeBtn.Position = UDim2.new(0, 12, 0, getY()); TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธ—เธธเธเธเธ (เธชเธฅเธฑเธ)"; TracerModeBtn.TextColor3 = Colors.Text; TracerModeBtn.TextSize = 12; TracerModeBtn.Font = Enum.Font.GothamBold
+TracerModeBtn.Text = "🧶 โหมดเส้น: ทุกคน (สลับ)"; TracerModeBtn.TextColor3 = Colors.Text; TracerModeBtn.TextSize = 12; TracerModeBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", TracerModeBtn).CornerRadius = UDim.new(0, 6)
 
 local StatsBtn = Instance.new("TextButton", Main)
 StatsBtn.Size = UDim2.new(1, -24, 0, 35); StatsBtn.Position = UDim2.new(0, 12, 0, getY()); StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
-StatsBtn.Text = "๐“ เธชเนเธญเธเธเนเธญเธกเธนเธฅเน€เธเนเธฒเธซเธกเธฒเธข (Stats)"; StatsBtn.TextColor3 = Colors.Text; StatsBtn.TextSize = 12; StatsBtn.Font = Enum.Font.GothamBold
+StatsBtn.Text = "📊 ส่องข้อมูลเป้าหมาย (Stats)"; StatsBtn.TextColor3 = Colors.Text; StatsBtn.TextSize = 12; StatsBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", StatsBtn).CornerRadius = UDim.new(0, 6)
 
-local DeleteModeBtn, _ = createHotkeyRow(getY(), "๐–ฑ๏ธ เนเธซเธกเธ”เธฅเธเธเธญเธ", "Del", Color3.fromRGB(239, 68, 68))
+local DeleteModeBtn, _ = createHotkeyRow(getY(), "🖱️ โหมดลบของ", "Del", Color3.fromRGB(239, 68, 68))
 
 local WarningBtn = Instance.new("TextButton", Main)
 WarningBtn.Size = UDim2.new(1, -24, 0, 35); WarningBtn.Position = UDim2.new(0, 12, 0, getY()); WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
-WarningBtn.Text = "โ ๏ธ เน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ (Raycast)"; WarningBtn.TextColor3 = Colors.Text; WarningBtn.TextSize = 12; WarningBtn.Font = Enum.Font.GothamBold
+WarningBtn.Text = "⚠️ เตือนภัยกระบอกปืน (Raycast)"; WarningBtn.TextColor3 = Colors.Text; WarningBtn.TextSize = 12; WarningBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", WarningBtn).CornerRadius = UDim.new(0, 6)
 
 local ExitBtn = Instance.new("TextButton", Main)
 ExitBtn.Size = UDim2.new(1, -24, 0, 35); ExitBtn.Position = UDim2.new(0, 12, 0, getY()); ExitBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-ExitBtn.Text = "โ เธเธดเธ”เธชเธเธฃเธดเธเธ•เน (Exit & Clear)"; ExitBtn.TextColor3 = Colors.Text; ExitBtn.TextSize = 12; ExitBtn.Font = Enum.Font.GothamBold
+ExitBtn.Text = "❌ ปิดสคริปต์ (Exit & Clear)"; ExitBtn.TextColor3 = Colors.Text; ExitBtn.TextSize = 12; ExitBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", ExitBtn).CornerRadius = UDim.new(0, 6)
 
 
 -- =======================================================
--- [เธฃเธฐเธเธ Aimbot FOV เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ]
+-- [ระบบ Aimbot FOV วงกลมล็อคเป้า]
 -- =======================================================
 local FOVEnabled = false
 local FOVRadius = 150
@@ -399,16 +399,16 @@ FOVCorner.CornerRadius = UDim.new(1, 0)
 FOVBtn.Activated:Connect(function()
     FOVEnabled = not FOVEnabled
     if FOVEnabled then
-        FOVBtn.Text = "โญ• เธเธดเธ”เธงเธเธเธฅเธก (เธฅเนเธญเธเธ—เธฑเนเธเธเธญ)"
+        FOVBtn.Text = "⭕ ปิดวงกลม (ล็อคทั้งจอ)"
         FOVBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
         FOVFrame.Visible = true
-        Status.Text = "เน€เธเธดเธ”เนเธเนเธฃเธฐเธเธ FOV (เธฅเนเธญเธเน€เธเธเธฒเธฐเนเธเธงเธเธเธฅเธก)"
+        Status.Text = "เปิดใช้ระบบ FOV (ล็อคเฉพาะในวงกลม)"
         Status.TextColor3 = Colors.Green
     else
-        FOVBtn.Text = "โญ• เน€เธเธดเธ”เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ (FOV)"
+        FOVBtn.Text = "⭕ เปิดวงกลมล็อคเป้า (FOV)"
         FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
         FOVFrame.Visible = false
-        Status.Text = "เธเธดเธ”เธงเธเธเธฅเธกเนเธฅเนเธง (Aimbot เธเธฐเธฅเนเธญเธเนเธเธเธ—เธฑเนเธเธเธญ)"
+        Status.Text = "ปิดวงกลมแล้ว (Aimbot จะล็อคแบบทั้งจอ)"
         Status.TextColor3 = Colors.Status
     end
 end)
@@ -419,7 +419,7 @@ local function updateFOVSlider(input)
     local percentage = relativeX / FOVSliderFrame.AbsoluteSize.X
     FOVRadius = math.floor(minFOV + ((maxFOV - minFOV) * percentage))
     FOVSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-    FOVSliderText.Text = "โญ• เธเธเธฒเธ”เธงเธ FOV: " .. FOVRadius
+    FOVSliderText.Text = "⭕ ขนาดวง FOV: " .. FOVRadius
     FOVFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 end
 
@@ -443,16 +443,16 @@ BindConn(RunService.RenderStepped:Connect(function()
 end))
 
 -- =======================================================
--- [เธฃเธฐเธเธเธเธฒเธฃเธ—เธณเธเธฒเธเธ•เนเธฒเธเน]
+-- [ระบบการทำงานต่างๆ]
 -- =======================================================
 
--- 1. เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ
+-- 1. ความเร็ววิ่ง
 local minSpeed = 16; local maxSpeed = 200; local currentSpeed = 16; local draggingSlider = false; local wasSpeedForcing = false
 local function updateSpeedSlider(input)
     local relativeX = math.clamp(input.Position.X - SliderFrame.AbsolutePosition.X, 0, SliderFrame.AbsoluteSize.X)
     local percentage = relativeX / SliderFrame.AbsoluteSize.X
     currentSpeed = math.floor(minSpeed + ((maxSpeed - minSpeed) * percentage))
-    SliderFill.Size = UDim2.new(percentage, 0, 1, 0); SliderText.Text = "๐ เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ: " .. currentSpeed
+    SliderFill.Size = UDim2.new(percentage, 0, 1, 0); SliderText.Text = "🏃 ความเร็ววิ่ง: " .. currentSpeed
 end
 SliderBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -474,14 +474,14 @@ BindConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- 2. เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”
+-- 2. ลบแมพทั้งหมด
 local AutoDelAllEnabled = false
 local function toggleAutoDelAll()
     AutoDelAllEnabled = not AutoDelAllEnabled
     if AutoDelAllEnabled then
-        AutoDelAllBtn.Text = "๐’ฅ เธเธณเธฅเธฑเธเธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”..."
+        AutoDelAllBtn.Text = "💥 กำลังลบแมพทั้งหมด..."
         AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        pcall(function() Status.Text = "เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃเน€เธเธฅเธตเธขเธฃเนเนเธกเธ..."; Status.TextColor3 = Colors.Green end)
+        pcall(function() Status.Text = "กำลังดำเนินการเคลียร์แมพ..."; Status.TextColor3 = Colors.Green end)
         task.spawn(function()
             local processCount = 0
             for _, hit in pairs(workspace:GetDescendants()) do
@@ -498,12 +498,12 @@ local function toggleAutoDelAll()
                     end
                 end
             end
-            pcall(function() AutoDelAllBtn.Text = "๐’ฅ เธเธทเธเธเนเธฒเนเธกเธ (Restore All)"; Status.Text = "เธฅเธเธญเธญเธเน€เธเธเธ•เนเนเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”เนเธฅเนเธง!" end)
+            pcall(function() AutoDelAllBtn.Text = "💥 คืนค่าแมพ (Restore All)"; Status.Text = "ลบออบเจกต์ในแมพทั้งหมดแล้ว!" end)
         end)
     else
-        AutoDelAllBtn.Text = "๐’ฅ เธเธณเธฅเธฑเธเธเธทเธเธเนเธฒ..."
+        AutoDelAllBtn.Text = "💥 กำลังคืนค่า..."
         AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-        pcall(function() Status.Text = "เธเธณเธฅเธฑเธเธ”เธถเธเนเธกเธเธเธฅเธฑเธเธกเธฒ..."; Status.TextColor3 = Colors.Status end)
+        pcall(function() Status.Text = "กำลังดึงแมพกลับมา..."; Status.TextColor3 = Colors.Status end)
         task.spawn(function()
             local processCount = 0
             for obj, data in pairs(MapDeletedObjects) do
@@ -517,13 +517,13 @@ local function toggleAutoDelAll()
                 if processCount % 1000 == 0 then task.wait() end
             end
             MapDeletedObjects = {} 
-            pcall(function() AutoDelAllBtn.Text = "๐’ฅ เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ” (Delete All)"; Status.Text = "เธเธทเธเธเนเธฒเนเธกเธเธเธฅเธฑเธเธกเธฒเธเธเธ•เธดเน€เธฃเธตเธขเธเธฃเนเธญเธข!" end)
+            pcall(function() AutoDelAllBtn.Text = "💥 ลบแมพทั้งหมด (Delete All)"; Status.Text = "คืนค่าแมพกลับมาปกติเรียบร้อย!" end)
         end)
     end
 end
 AutoDelAllBtn.Activated:Connect(toggleAutoDelAll)
 
--- 3. ESP เธกเธญเธเธ—เธฐเธฅเธธ
+-- 3. ESP มองทะลุ
 local ESPEnabled = false
 local espRenderConnection = nil
 local function RemoveESP(char)
@@ -535,9 +535,9 @@ end
 local function toggleESP()
     ESPEnabled = not ESPEnabled
     if ESPEnabled then
-        ESPBtn.Text = "๐‘๏ธ เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ"
+        ESPBtn.Text = "👁️ ปิดมองทะลุ"
         ESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "ESP: เธกเธญเธเน€เธซเนเธ(เนเธ”เธ) / เธซเธฅเธฑเธเธเธณเนเธเธ(เน€เธเธตเธขเธง)"
+        Status.Text = "ESP: มองเห็น(แดง) / หลังกำแพง(เขียว)"
         Status.TextColor3 = Colors.Green
         espRenderConnection = BindConn(RunService.RenderStepped:Connect(function()
             for _, p in pairs(Players:GetPlayers()) do
@@ -588,9 +588,9 @@ local function toggleESP()
             end
         end))
     else
-        ESPBtn.Text = "๐‘๏ธ เน€เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ (ESP+เน€เธฅเธทเธญเธ”)"
+        ESPBtn.Text = "👁️ เปิดมองทะลุ (ESP+เลือด)"
         ESPBtn.BackgroundColor3 = Colors.ButtonESP
-        Status.Text = "เธเธดเธ”เนเธซเธกเธ”เธกเธญเธเธ—เธฐเธฅเธธ"
+        Status.Text = "ปิดโหมดมองทะลุ"
         Status.TextColor3 = Colors.Status
         if espRenderConnection then espRenderConnection:Disconnect(); espRenderConnection = nil end
         for _, p in pairs(Players:GetPlayers()) do if p.Character then RemoveESP(p.Character) end end
@@ -609,7 +609,7 @@ _G.UtilityCorpseFolder = CorpseFolder
 local function toggleCorpseESP()
     CorpseESPEnabled = not CorpseESPEnabled
     if CorpseESPEnabled then
-        CorpseESPBtn.Text = "๐’€ เธเธดเธ”เธกเธญเธเธจเธ"
+        CorpseESPBtn.Text = "💀 ปิดมองศพ"
         CorpseESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
         
         task.spawn(function()
@@ -619,18 +619,18 @@ local function toggleCorpseESP()
                 for i = 1, #descendants do
                     if not CorpseESPEnabled then break end
                     local obj = descendants[i]
-                    local isTarget = false; local targetPart = nil; local espName = ""; local displayName = "๐’€ เธจเธ (Loot)"
+                    local isTarget = false; local targetPart = nil; local espName = ""; local displayName = "💀 ศพ (Loot)"
 
                     if obj:IsA("ProximityPrompt") then
                         local text = (obj.ActionText or "") .. " " .. (obj.ObjectText or "")
-                        if string.find(text, "เธเนเธเธซเธฒ") or string.find(text, "Search") then
+                        if string.find(text, "ค้นหา") or string.find(text, "Search") then
                             isTarget = true; targetPart = obj.Parent; espName = "Prompt_" .. tostring(targetPart)
                         end
                     elseif obj:IsA("Model") then
                         local hum = obj:FindFirstChild("Humanoid")
                         if hum and hum.Health <= 0 and obj ~= LocalPlayer.Character then
                             isTarget = true; targetPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                            espName = "Ragdoll_" .. obj.Name; displayName = "๐’€ เธจเธ: " .. obj.Name
+                            espName = "Ragdoll_" .. obj.Name; displayName = "💀 ศพ: " .. obj.Name
                         else
                             local lName = string.lower(obj.Name)
                             if lName == "corpse" or lName == "deadbody" or lName == "lootdrop" or lName == "droppedloot" then
@@ -665,7 +665,7 @@ local function toggleCorpseESP()
             end
         end)
     else
-        CorpseESPBtn.Text = "๐’€ เน€เธเธดเธ”เธกเธญเธเธจเธ (Loot)"
+        CorpseESPBtn.Text = "💀 เปิดมองศพ (Loot)"
         CorpseESPBtn.BackgroundColor3 = Colors.Corpse
         CorpseFolder:ClearAllChildren()
     end
@@ -678,7 +678,7 @@ local weaponEspLoop = nil
 local function toggleWeaponESP()
     WeaponESPEnabled = not WeaponESPEnabled
     if WeaponESPEnabled then
-        WeaponESPBtn.Text = "๐”ซ เธเธดเธ”เธเธญเธเธเธทเนเธญเธเธทเธ"
+        WeaponESPBtn.Text = "🔫 ปิดบอกชื่อปืน"
         WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
         weaponEspLoop = BindConn(RunService.Heartbeat:Connect(function()
             for _, p in pairs(Players:GetPlayers()) do
@@ -686,7 +686,7 @@ local function toggleWeaponESP()
                     local char = p.Character
                     local head = char.Head
                     local tool = char:FindFirstChildOfClass("Tool")
-                    local toolName = tool and tool.Name or "เธกเธทเธญเน€เธเธฅเนเธฒ"
+                    local toolName = tool and tool.Name or "มือเปล่า"
                     local bg = char:FindFirstChild("WeaponESP_UI")
                     if not bg then
                         bg = Instance.new("BillboardGui")
@@ -697,13 +697,13 @@ local function toggleWeaponESP()
                         txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Name = "WpnText"
                         bg.Parent = char
                     end
-                    if tool then bg.WpnText.Text = "๐”ซ " .. toolName; bg.WpnText.TextColor3 = Color3.fromRGB(255, 100, 100)
-                    else bg.WpnText.Text = "โ เธกเธทเธญเน€เธเธฅเนเธฒ"; bg.WpnText.TextColor3 = Color3.fromRGB(200, 200, 200) end
+                    if tool then bg.WpnText.Text = "🔫 " .. toolName; bg.WpnText.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    else bg.WpnText.Text = "✋ มือเปล่า"; bg.WpnText.TextColor3 = Color3.fromRGB(200, 200, 200) end
                 end
             end
         end))
     else
-        WeaponESPBtn.Text = "๐”ซ เธเธญเธเธเธทเนเธญเธเธทเธ/เนเธญเน€เธ—เธกเธเธเธญเธทเนเธ"
+        WeaponESPBtn.Text = "🔫 บอกชื่อปืน/ไอเทมคนอื่น"
         WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
         if weaponEspLoop then weaponEspLoop:Disconnect(); weaponEspLoop = nil end
         for _, p in pairs(Players:GetPlayers()) do
@@ -720,7 +720,7 @@ local function toggleDay()
     AlwaysDayEnabled = not AlwaysDayEnabled
     local Lighting = game:GetService("Lighting")
     if AlwaysDayEnabled then
-        DayBtn.Text = "โ€๏ธ เธเธดเธ”เธชเธงเนเธฒเธ/เน€เธเนเธฒเธ•เธฅเธญเธ”"
+        DayBtn.Text = "☀️ ปิดสว่าง/เช้าตลอด"
         DayBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
         origAmbient = Lighting.Ambient; origOutdoorAmbient = Lighting.OutdoorAmbient; origShadows = Lighting.GlobalShadows
         Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false
@@ -728,7 +728,7 @@ local function toggleDay()
             if AlwaysDayEnabled then Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false end
         end))
     else
-        DayBtn.Text = "โ€๏ธ เธเธฅเธฒเธเธงเธฑเธ+เธชเธงเนเธฒเธเธ•เธฅเธญเธ”"
+        DayBtn.Text = "☀️ กลางวัน+สว่างตลอด"
         DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
         if dayConnection then dayConnection:Disconnect(); dayConnection = nil end
         Lighting.Ambient = origAmbient or Color3.fromRGB(127, 127, 127)
@@ -739,7 +739,7 @@ end
 DayBtn.Activated:Connect(toggleDay)
 
 -- =======================================================
--- [ เธญเธฑเธเน€เธ”เธ•เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ + เธญเธญเนเธ•เนเธขเธดเธ ] 6. Aimbot 
+-- [ อัปเดตยิงดักหน้า + ออโต้ยิง ] 6. Aimbot 
 -- =======================================================
 local isAimbotting = false
 local aimbotConnection = nil
@@ -754,17 +754,17 @@ local PredictionEnabled = false
 local PredictionAmt = 0.1
 local draggingPred = false
 
--- เธเธธเนเธกเน€เธเธดเธ”-เธเธดเธ”เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ
+-- ปุ่มเปิด-ปิดยิงดักหน้า
 PredictionBtn.Activated:Connect(function()
     PredictionEnabled = not PredictionEnabled
     if PredictionEnabled then
-        PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เน€เธเธดเธ”"
+        PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): เปิด"
         PredictionBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เน€เธเธดเธ”เธเธณเธเธงเธ“เธเธดเธชเธดเธเธชเนเธขเธดเธเธ”เธฑเธเธซเธเนเธฒเน€เธเนเธฒเธซเธกเธฒเธขเนเธฅเนเธง"
+        Status.Text = "เปิดคำนวณฟิสิกส์ยิงดักหน้าเป้าหมายแล้ว"
     else
-        PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เธเธดเธ”"
+        PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): ปิด"
         PredictionBtn.BackgroundColor3 = Colors.Pred
-        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเธขเธดเธเธ”เธฑเธเธซเธเนเธฒเนเธฅเนเธง"
+        Status.Text = "ปิดระบบยิงดักหน้าแล้ว"
     end
     Status.TextColor3 = Colors.Green
 end)
@@ -772,9 +772,9 @@ end)
 local function updatePredSlider(input)
     local relativeX = math.clamp(input.Position.X - PredSliderFrame.AbsolutePosition.X, 0, PredSliderFrame.AbsoluteSize.X)
     local percentage = relativeX / PredSliderFrame.AbsoluteSize.X
-    PredictionAmt = math.floor((0.01 + (0.5 - 0.01) * percentage) * 100) / 100 -- เธเนเธฒเธฃเธฐเธซเธงเนเธฒเธ 0.01 เธ–เธถเธ 0.50
+    PredictionAmt = math.floor((0.01 + (0.5 - 0.01) * percentage) * 100) / 100 -- ค่าระหว่าง 0.01 ถึง 0.50
     PredSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-    PredSliderText.Text = "๐”ฎ เธเนเธฒเธ”เธฑเธเธซเธเนเธฒเธเธฃเธฐเธชเธธเธ: " .. tostring(PredictionAmt)
+    PredSliderText.Text = "🔮 ค่าดักหน้ากระสุน: " .. tostring(PredictionAmt)
 end
 
 PredSliderBtn.InputBegan:Connect(function(input)
@@ -792,14 +792,14 @@ end))
 AutoShootBtn.Activated:Connect(function()
     AutoShootEnabled = not AutoShootEnabled
     if AutoShootEnabled then
-        AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เน€เธเธดเธ”"
+        AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: เปิด"
         AutoShootBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เน€เธเธดเธ”เนเธเนเธญเธญเนเธ•เนเธขเธดเธ (TriggerBot) เนเธฅเนเธง"
+        Status.Text = "เปิดใช้ออโต้ยิง (TriggerBot) แล้ว"
         Status.TextColor3 = Colors.Green
     else
-        AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เธเธดเธ”"
+        AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: ปิด"
         AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-        Status.Text = "เธเธดเธ”เธเธฒเธฃเธญเธญเนเธ•เนเธขเธดเธเนเธฅเนเธง"
+        Status.Text = "ปิดการออโต้ยิงแล้ว"
         Status.TextColor3 = Colors.Status
     end
 end)
@@ -807,12 +807,12 @@ end)
 AimPartBtn.Activated:Connect(function()
     if AimTargetPart == "HumanoidRootPart" then
         AimTargetPart = "Head"
-        AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธซเธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธข Aimbot: เธซเธฑเธง (Head)"
+        AimPartBtn.Text = "🎯 เล็ง: หัว (สลับเป้า)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        Status.Text = "เป้าหมาย Aimbot: หัว (Head)"
     else
         AimTargetPart = "HumanoidRootPart"
-        AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธฅเธณเธ•เธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-        Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธข Aimbot: เธฅเธณเธ•เธฑเธง (Torso)"
+        AimPartBtn.Text = "🎯 เล็ง: ลำตัว (สลับเป้า)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+        Status.Text = "เป้าหมาย Aimbot: ลำตัว (Torso)"
     end
     Status.TextColor3 = Colors.Green
 end)
@@ -820,13 +820,13 @@ end)
 WallCheckBtn.Activated:Connect(function()
     WallCheckEnabled = not WallCheckEnabled
     if WallCheckEnabled then
-        WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธกเนเนเธ”เน (เธฅเนเธญเธเนเธเนเธ•เธฑเธงเนเธ”เธ)"
+        WallCheckBtn.Text = "🧱 ทะลุกำแพง: ไม่ได้ (ล็อคแค่ตัวแดง)"
         WallCheckBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "เนเธซเธกเธ” Aimbot: เธฅเนเธญเธเน€เธเธเธฒเธฐเธเธเธ—เธตเนเธกเธญเธเน€เธซเนเธเน€เธ—เนเธฒเธเธฑเนเธ"
+        Status.Text = "โหมด Aimbot: ล็อคเฉพาะคนที่มองเห็นเท่านั้น"
     else
-        WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธ”เน (เธเธฅเธดเธเธชเธฅเธฑเธ)"
+        WallCheckBtn.Text = "🧱 ทะลุกำแพง: ได้ (คลิกสลับ)"
         WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เนเธซเธกเธ” Aimbot: เธ—เธฐเธฅเธธเธเธณเนเธเธเนเธ”เน"
+        Status.Text = "โหมด Aimbot: ทะลุกำแพงได้"
     end
     Status.TextColor3 = Colors.Green
 end)
@@ -836,7 +836,7 @@ local function stopAimbot()
     hardLockedPlayer = nil
     currentTarget = nil
     if aimbotConnection then aimbotConnection:Disconnect() end
-    AimBtn.Text = " ๐ฏ เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒ Aimbot"
+    AimBtn.Text = " 🎯 ระบบล็อคเป้า Aimbot"
     AimBtn.BackgroundColor3 = Colors.ButtonAim
 end
 
@@ -857,14 +857,14 @@ end
 local function toggleAimbot()
     if isAimbotting then
         stopAimbot()
-        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒเนเธฅเนเธง"
+        Status.Text = "ปิดระบบล็อคเป้าแล้ว"
         Status.TextColor3 = Colors.Status
         return
     end
     isAimbotting = true
-    AimBtn.Text = " ๐ฏ เธเธณเธฅเธฑเธเน€เธฅเนเธ..."
+    AimBtn.Text = " 🎯 กำลังเล็ง..."
     AimBtn.BackgroundColor3 = Colors.Green
-    Status.Text = "เธเธณเธฅเธฑเธเธซเธฑเธเธเธฅเนเธญเธเธซเธฒเน€เธเนเธฒเธซเธกเธฒเธข!"
+    Status.Text = "กำลังหันกล้องหาเป้าหมาย!"
     Status.TextColor3 = Colors.ButtonAim
 
     aimbotConnection = BindConn(RunService.RenderStepped:Connect(function()
@@ -895,7 +895,7 @@ local function toggleAimbot()
                 return 
             else
                 hardLockedPlayer = nil
-                Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธขเธ—เธตเนเธฅเนเธญเธเธซเธฒเธขเนเธ (เธเธฅเธฑเธเธชเธนเนเนเธซเธกเธ”เธซเธฒเธ•เธฒเธกเน€เธกเธฒเธชเน)"
+                Status.Text = "เป้าหมายที่ล็อคหายไป (กลับสู่โหมดหาตามเมาส์)"
             end
         end
         
@@ -949,14 +949,14 @@ HardLockBtn.Activated:Connect(function()
     if isAimbotting then
         if hardLockedPlayer then
             hardLockedPlayer = nil
-            Status.Text = "เธเธฅเธ”เธฅเนเธญเธเน€เธเธฒเธฐเธเธ (เน€เธฅเนเธเธ•เธฒเธกเน€เธกเธฒเธชเนเธ•เนเธญ)"
-            HardLockBtn.Text = " ๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข"
+            Status.Text = "ปลดล็อคเจาะจง (เล็งตามเมาส์ต่อ)"
+            HardLockBtn.Text = " 🔒 ปุ่มล็อคเจาะจงเป้าหมาย"
             HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
         else
             if currentTarget then
                 hardLockedPlayer = currentTarget
-                Status.Text = "๐”’ เธฅเนเธญเธเธ•เธฒเธขเธ•เธฑเธงเธ—เธตเน: " .. hardLockedPlayer.Name
-                HardLockBtn.Text = " ๐”’ เธเธฅเธ”เธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                Status.Text = "🔒 ล็อคตายตัวที่: " .. hardLockedPlayer.Name
+                HardLockBtn.Text = " 🔒 ปลดล็อคเป้าหมาย"
                 HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
             end
         end
@@ -990,7 +990,7 @@ end))
 
 local StatTitle = Instance.new("TextLabel", StatsPanel)
 StatTitle.Size = UDim2.new(1, 0, 0, 25); StatTitle.BackgroundTransparency = 1
-StatTitle.Text = "๐ฏ เน€เธเนเธฒเธซเธกเธฒเธข Aimbot"; StatTitle.TextColor3 = Color3.fromRGB(14, 165, 233)
+StatTitle.Text = "🎯 เป้าหมาย Aimbot"; StatTitle.TextColor3 = Color3.fromRGB(14, 165, 233)
 StatTitle.Font = Enum.Font.GothamBold; StatTitle.TextSize = 13
 
 local StatName = Instance.new("TextLabel", StatsPanel)
@@ -1016,16 +1016,16 @@ StatDist.TextColor3 = Color3.fromRGB(250, 204, 21); StatDist.Font = Enum.Font.Go
 local function toggleStats()
     StatsEnabled = not StatsEnabled
     if StatsEnabled then
-        StatsBtn.Text = "๐“ เธเธดเธ”เธซเธเนเธฒเธ•เนเธฒเธเธเนเธญเธกเธนเธฅ"
+        StatsBtn.Text = "📊 ปิดหน้าต่างข้อมูล"
         StatsBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
         StatsPanel.Visible = true
-        Status.Text = "เน€เธเธดเธ”เนเธ—เธฃเนเธเธเนเธญเธกเธนเธฅเธจเธฑเธ•เธฃเธนเธ—เธตเนเธเธฐเธฅเนเธญเธเน€เธเนเธฒเนเธฅเนเธง"
+        Status.Text = "เปิดแทร็กข้อมูลศัตรูที่จะล็อคเป้าแล้ว"
         Status.TextColor3 = Colors.Green
     else
-        StatsBtn.Text = "๐“ เธชเนเธญเธเธเนเธญเธกเธนเธฅเน€เธเนเธฒเธซเธกเธฒเธข (Stats)"
+        StatsBtn.Text = "📊 ส่องข้อมูลเป้าหมาย (Stats)"
         StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
         StatsPanel.Visible = false
-        Status.Text = "เธเธดเธ”เธซเธเนเธฒเธ•เนเธฒเธเนเธ—เธฃเนเธเธเนเธญเธกเธนเธฅ"
+        Status.Text = "ปิดหน้าต่างแทร็กข้อมูล"
         Status.TextColor3 = Colors.Status
     end
 end
@@ -1059,14 +1059,14 @@ end
 local function toggleTracers()
     TracersEnabled = not TracersEnabled
     if TracersEnabled then
-        TracersBtn.Text = "๐งถ เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ"
+        TracersBtn.Text = "🧶 ปิดเส้นชี้เป้า"
         TracersBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เน€เธเธดเธ”เน€เธชเนเธเธฅเธฒเธเน€เธเนเธฒเธซเธฒเธจเธฑเธ•เธฃเธนเนเธฅเนเธง"
+        Status.Text = "เปิดเส้นลากเป้าหาศัตรูแล้ว"
         Status.TextColor3 = Colors.Green
     else
-        TracersBtn.Text = "๐งถ เน€เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ (Tracers)"
+        TracersBtn.Text = "🧶 เปิดเส้นชี้เป้า (Tracers)"
         TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
-        Status.Text = "เธเธดเธ”เน€เธชเนเธเธฅเธฒเธเน€เธเนเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธข"
+        Status.Text = "ปิดเส้นลากเป้าเรียบร้อย"
         Status.TextColor3 = Colors.Status
         clearTracers()
     end
@@ -1076,19 +1076,19 @@ TracersBtn.Activated:Connect(toggleTracers)
 TracerModeBtn.Activated:Connect(function()
     if TracerMode == "All" then
         TracerMode = "Closest"
-        TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธเธเธ—เธตเนเธ–เธนเธเธฅเนเธญเธ (เธชเธฅเธฑเธ)"
+        TracerModeBtn.Text = "🧶 โหมดเส้น: คนที่ถูกล็อค (สลับ)"
         TracerModeBtn.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
-        Status.Text = "เน€เธชเนเธเธเธฐเธฅเธฒเธเนเธเธซเธฒเธเธเธ—เธตเนเธเธณเธฅเธฑเธเน€เธฅเนเธเธญเธขเธนเนเน€เธ—เนเธฒเธเธฑเนเธ!"
+        Status.Text = "เส้นจะลากไปหาคนที่กำลังเล็งอยู่เท่านั้น!"
     else
         TracerMode = "All"
-        TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธ—เธธเธเธเธ (เธชเธฅเธฑเธ)"
+        TracerModeBtn.Text = "🧶 โหมดเส้น: ทุกคน (สลับ)"
         TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-        Status.Text = "เน€เธชเนเธเธเธฐเธฅเธฒเธเนเธเธซเธฒเธ—เธธเธเธเธเนเธเนเธกเธ!"
+        Status.Text = "เส้นจะลากไปหาทุกคนในแมพ!"
     end
     Status.TextColor3 = Colors.Green
 end)
 
--- เธฅเธนเธเธเธฒเธฃเนเธชเธ”เธเธเธฅเธฃเนเธงเธกเธเธญเธ Stats & Tracers
+-- ลูปการแสดงผลร่วมของ Stats & Tracers
 BindConn(RunService.RenderStepped:Connect(function()
     local displayTarget = nil
     
@@ -1118,14 +1118,14 @@ BindConn(RunService.RenderStepped:Connect(function()
         if displayTarget and displayTarget.Character then
             local hum = displayTarget.Character:FindFirstChild("Humanoid")
             local tool = displayTarget.Character:FindFirstChildOfClass("Tool")
-            StatName.Text = "๐‘ค เธเธทเนเธญ: " .. displayTarget.DisplayName
-            if hum then StatHP.Text = "โค๏ธ เน€เธฅเธทเธญเธ”: " .. math.floor(hum.Health) .. " / " .. math.floor(hum.MaxHealth) end
-            StatWeapon.Text = "๐”ซ เธญเธฒเธงเธธเธ: " .. (tool and tool.Name or "เธกเธทเธญเน€เธเธฅเนเธฒ")
+            StatName.Text = "👤 ชื่อ: " .. displayTarget.DisplayName
+            if hum then StatHP.Text = "❤️ เลือด: " .. math.floor(hum.Health) .. " / " .. math.floor(hum.MaxHealth) end
+            StatWeapon.Text = "🔫 อาวุธ: " .. (tool and tool.Name or "มือเปล่า")
             local hrp = displayTarget.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: " .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m"
-            else StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: -" end
+            if hrp then StatDist.Text = "📏 ระยะห่าง: " .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m"
+            else StatDist.Text = "📏 ระยะห่าง: -" end
         else
-            StatName.Text = "๐‘ค เธเธทเนเธญ: (เนเธกเนเธเธเน€เธเนเธฒเธซเธกเธฒเธข)"; StatHP.Text = "โค๏ธ เน€เธฅเธทเธญเธ”: -"; StatWeapon.Text = "๐”ซ เธญเธฒเธงเธธเธ: -"; StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: -"
+            StatName.Text = "👤 ชื่อ: (ไม่พบเป้าหมาย)"; StatHP.Text = "❤️ เลือด: -"; StatWeapon.Text = "🔫 อาวุธ: -"; StatDist.Text = "📏 ระยะห่าง: -"
         end
     end
 
@@ -1180,21 +1180,21 @@ BindConn(RunService.RenderStepped:Connect(function()
     end
 end))
 
--- 9. เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ
+-- 9. สร้างเสาปีน
 local PoleModeEnabled = false
 local poleMouse = LocalPlayer:GetMouse()
 
 local function togglePoleMode()
     PoleModeEnabled = not PoleModeEnabled
     if PoleModeEnabled then
-        CreatePoleBtn.Text = " ๐งฑ เธเธดเธ”เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ (เธฅเธเธ—เธดเนเธ)"
+        CreatePoleBtn.Text = " 🧱 ปิดโหมดสร้างเสา (ลบทิ้ง)"
         CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เน€เธเธดเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ (เธเธตเนเน€เธกเธฒเธชเนเนเธเธ—เธตเนเธเธทเนเธเนเธฅเนเธงเธเธ”เธเธธเนเธกเธฅเธฑเธ”)"
+        Status.Text = "เปิดสร้างเสา (ชี้เมาส์ไปที่พื้นแล้วกดปุ่มลัด)"
         Status.TextColor3 = Colors.Green
     else
-        CreatePoleBtn.Text = " ๐งฑ เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ"
+        CreatePoleBtn.Text = " 🧱 โหมดสร้างเสาปีน"
         CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เธเธดเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ + เน€เธเธฅเธตเธขเธฃเนเน€เธชเธฒเธ—เธฑเนเธเธซเธกเธ”เน€เธฃเธตเธขเธเธฃเนเธญเธข"
+        Status.Text = "ปิดสร้างเสา + เคลียร์เสาทั้งหมดเรียบร้อย"
         Status.TextColor3 = Colors.Status
         
         for _, pole in ipairs(SpawnedPoles) do
@@ -1205,7 +1205,7 @@ local function togglePoleMode()
 end
 CreatePoleBtn.Activated:Connect(togglePoleMode)
 
--- 10. Delete Mode เนเธซเธกเธ”เธเนเธญเธเธงเธฑเธ•เธ–เธธ
+-- 10. Delete Mode โหมดซ่อนวัตถุ
 local DeleteModeEnabled = false
 local hoverHighlight = Instance.new("Highlight")
 hoverHighlight.Name = "DeleteHoverHighlight"
@@ -1224,9 +1224,9 @@ local deleteMouse = LocalPlayer:GetMouse()
 local function ToggleDeleteMode()
     DeleteModeEnabled = not DeleteModeEnabled
     if DeleteModeEnabled then
-        DeleteModeBtn.Text = " ๐–ฑ๏ธ เธเธดเธ”เนเธซเธกเธ”เธฅเธเธเธญเธ"
+        DeleteModeBtn.Text = " 🖱️ ปิดโหมดลบของ"
         DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เนเธซเธกเธ”เธฅเธ: เน€เธเธดเธ” (เธเธฅเธดเธเน€เธกเธฒเธชเนเธเธฅเธฒเธเธเนเธญเธเธเธญเธ)"
+        Status.Text = "โหมดลบ: เปิด (คลิกเมาส์กลางซ่อนของ)"
         Status.TextColor3 = Color3.fromRGB(255, 50, 50)
         hoverHighlight.Enabled = true 
         
@@ -1243,9 +1243,9 @@ local function ToggleDeleteMode()
             end
         end))
     else
-        DeleteModeBtn.Text = " ๐–ฑ๏ธ เนเธซเธกเธ”เธฅเธเธเธญเธ"
+        DeleteModeBtn.Text = " 🖱️ โหมดลบของ"
         DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "เนเธซเธกเธ”เธฅเธ: เธเธดเธ” (เธเธทเธเธเนเธฒเธ—เธตเนเธเธฅเธดเธเธฅเธเนเธเนเธฅเนเธง)"
+        Status.Text = "โหมดลบ: ปิด (คืนค่าที่คลิกลบไปแล้ว)"
         Status.TextColor3 = Colors.Green
         
         if deleteRenderConnection then deleteRenderConnection:Disconnect(); deleteRenderConnection = nil end
@@ -1283,14 +1283,14 @@ _G.UtilityWarningUI = WarnGui
 local function toggleWarning()
     WarningEnabled = not WarningEnabled
     if WarningEnabled then
-        WarningBtn.Text = "โ ๏ธ เธเธดเธ”เธฃเธฐเธเธเน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ"
+        WarningBtn.Text = "⚠️ ปิดระบบเตือนภัยกระบอกปืน"
         WarningBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เน€เธเธดเธ”เน€เธฃเธ”เธฒเธฃเน Raycast เน€เธเนเธเธ—เธดเธจเธ—เธฒเธเธเธทเธเนเธฅเนเธง"
+        Status.Text = "เปิดเรดาร์ Raycast เช็คทิศทางปืนแล้ว"
         Status.TextColor3 = Colors.Green
     else
-        WarningBtn.Text = "โ ๏ธ เน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ (Raycast)"
+        WarningBtn.Text = "⚠️ เตือนภัยกระบอกปืน (Raycast)"
         WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
-        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเนเธเนเธเน€เธ•เธทเธญเธเน€เธฃเธ”เธฒเธฃเนเนเธฅเนเธง"
+        Status.Text = "ปิดระบบแจ้งเตือนเรดาร์แล้ว"
         Status.TextColor3 = Colors.Status
         WarnText.Visible = false
         AimingPlayers = {}
@@ -1352,14 +1352,14 @@ BindConn(RunService.RenderStepped:Connect(function()
     AimingPlayers = currentAimers
     
     if firstAimerName ~= "" then
-        WarnText.Text = "โ ๏ธ เธฃเธฐเธงเธฑเธ! [" .. firstAimerName .. "] เธเธณเธฅเธฑเธเธซเธฑเธเธเธฃเธฐเธเธญเธเธเธทเธเน€เธฅเนเธเธเธธเธ“! โ ๏ธ"; WarnText.Visible = true
+        WarnText.Text = "⚠️ ระวัง! [" .. firstAimerName .. "] กำลังหันกระบอกปืนเล็งคุณ! ⚠️"; WarnText.Visible = true
     else 
         WarnText.Visible = false 
     end
 end))
 
 -- =======================================================
--- [Input Handling] เธเธฑเธ”เธเธฒเธฃเธฃเธฑเธเธเธธเนเธกเธฅเธฑเธ”
+-- [Input Handling] จัดการรับปุ่มลัด
 -- =======================================================
 BindConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -1370,14 +1370,14 @@ BindConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if isAimbotting then
             if hardLockedPlayer then
                 hardLockedPlayer = nil
-                Status.Text = "เธเธฅเธ”เธฅเนเธญเธเน€เธเธฒเธฐเธเธ (เน€เธฅเนเธเธ•เธฒเธกเน€เธกเธฒเธชเนเธ•เนเธญ)"
-                HardLockBtn.Text = " ๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                Status.Text = "ปลดล็อคเจาะจง (เล็งตามเมาส์ต่อ)"
+                HardLockBtn.Text = " 🔒 ปุ่มล็อคเจาะจงเป้าหมาย"
                 HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
             else
                 if currentTarget then
                     hardLockedPlayer = currentTarget
-                    Status.Text = "๐”’ เธฅเนเธญเธเธ•เธฒเธขเธ•เธฑเธงเธ—เธตเน: " .. hardLockedPlayer.Name
-                    HardLockBtn.Text = " ๐”’ เธเธฅเธ”เธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                    Status.Text = "🔒 ล็อคตายตัวที่: " .. hardLockedPlayer.Name
+                    HardLockBtn.Text = " 🔒 ปลดล็อคเป้าหมาย"
                     HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
                 end
             end
@@ -1415,7 +1415,7 @@ BindConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end))
 
 -- =======================================================
--- [เธฃเธฐเธเธเธชเธฑเนเธเธเธฒเธฃเธฃเธฐเน€เธเธดเธ”เธ•เธฑเธงเน€เธญเธเธเนเธฒเธเธเธธเนเธก UI]
+-- [ระบบสั่งการระเบิดตัวเองผ่านปุ่ม UI]
 -- =======================================================
 ExitBtn.Activated:Connect(function()
     if _G.UtilityHubCleanup then
