@@ -1,0 +1,1424 @@
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+-- =======================================================
+-- [เธฃเธฐเธเธ Master Cleanup เธเนเธญเธเธเธฑเธเธเธญเธกเธเธตเนเธชเธเธฃเธดเธเธ•เนเนเธฅเธฐเธเธฑเธเธเนเธฒเธ]
+-- =======================================================
+if _G.UtilityHubCleanup then
+    pcall(_G.UtilityHubCleanup)
+    task.wait(0.1) 
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local MyConnections = {}
+local function BindConn(conn)
+    table.insert(MyConnections, conn)
+    return conn
+end
+
+local ClickDeletedObjects = {} 
+local MapDeletedObjects = {} 
+local SpawnedPoles = {}
+local tracerLines = {}
+local origAmbient, origOutdoorAmbient, origShadows
+
+local hardLockedPlayer = nil 
+local AimingPlayers = {} 
+
+local function isPlayerCharacter(part)
+    if not part then return false end
+    local model = part:FindFirstAncestorOfClass("Model")
+    if model and Players:GetPlayerFromCharacter(model) then return true end
+    if LocalPlayer.Character and part:IsDescendantOf(LocalPlayer.Character) then return true end
+    return false
+end
+
+-- [เธเธฑเธเธเนเธเธฑเธเธฅเนเธฒเธเธเธฒเธ]
+_G.UtilityHubCleanup = function()
+    for _, conn in ipairs(MyConnections) do
+        if conn then pcall(function() conn:Disconnect() end) end
+    end
+    for obj, data in pairs(MapDeletedObjects) do
+        if obj then pcall(function() obj.Transparency = data.origTransparency; obj.CanCollide = data.origCanCollide; if data.origCanQuery ~= nil then obj.CanQuery = data.origCanQuery end end) end
+    end
+    for _, data in ipairs(ClickDeletedObjects) do
+        if data.obj then pcall(function() data.obj.Transparency = data.origTransparency; data.obj.CanCollide = data.origCanCollide; if data.origCanQuery ~= nil then data.obj.CanQuery = data.origCanQuery end end) end
+    end
+    for _, pole in ipairs(SpawnedPoles) do
+        if pole then pcall(function() pole:Destroy() end) end
+    end
+    pcall(function()
+        local Lighting = game:GetService("Lighting")
+        if origAmbient then Lighting.Ambient = origAmbient end
+        if origOutdoorAmbient then Lighting.OutdoorAmbient = origOutdoorAmbient end
+        if origShadows ~= nil then Lighting.GlobalShadows = origShadows end
+    end)
+    pcall(function()
+        for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+            if p.Character then
+                local hl = p.Character:FindFirstChild("PrankESP"); if hl then hl:Destroy() end
+                local hpBar = p.Character:FindFirstChild("HealthESP"); if hpBar then hpBar:Destroy() end
+                local bg = p.Character:FindFirstChild("WeaponESP_UI"); if bg then bg:Destroy() end
+            end
+        end
+    end)
+    pcall(function()
+        local char = game:GetService("Players").LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = 16 end
+    end)
+    
+    if _G.UtilityUI then pcall(function() _G.UtilityUI:Destroy() end); _G.UtilityUI = nil end
+    if _G.UtilityWarningUI then pcall(function() _G.UtilityWarningUI:Destroy() end); _G.UtilityWarningUI = nil end
+    if _G.UtilityCorpseFolder then pcall(function() _G.UtilityCorpseFolder:Destroy() end); _G.UtilityCorpseFolder = nil end
+    if _G.UtilityFOVUI then pcall(function() _G.UtilityFOVUI:Destroy() end); _G.UtilityFOVUI = nil end
+end
+
+-- =======================================================
+-- [เธชเธฃเนเธฒเธ UI เนเธฅเธฐเธซเธเนเธฒเธ•เนเธฒเธเน€เธกเธเธน]
+-- =======================================================
+local function getSafeParent()
+    if gethui then return gethui() end
+    if pcall(function() return CoreGui.Name end) then return CoreGui end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local SafeGuiParent = getSafeParent()
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "UtilityHubUI_" .. tostring(math.random(100000, 999999))
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true 
+ScreenGui.Parent = SafeGuiParent
+_G.UtilityUI = ScreenGui
+
+local function ProtectMyUI(gui)
+    if syn and syn.protect_gui then pcall(syn.protect_gui, gui)
+    elseif protectgui then pcall(protectgui, gui) end
+end
+ProtectMyUI(ScreenGui)
+
+local Colors = {
+    Bg = Color3.fromRGB(20, 20, 25),
+    Panel = Color3.fromRGB(35, 35, 45),
+    ButtonESP = Color3.fromRGB(234, 179, 8),
+    Text = Color3.fromRGB(240, 240, 240),
+    Status = Color3.fromRGB(150, 150, 160),
+    Green = Color3.fromRGB(74, 222, 128),
+    ButtonAim = Color3.fromRGB(225, 29, 72),
+    FOVColor = Color3.fromRGB(236, 72, 153),
+    Warning = Color3.fromRGB(239, 68, 68),
+    Corpse = Color3.fromRGB(139, 92, 246),
+    Pred = Color3.fromRGB(14, 165, 233)
+}
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 230, 0, 950) -- เธเธขเธฒเธขเธเธเธฒเธ”เธฃเธญเธเธฃเธฑเธเธเธธเนเธกเธขเธดเธเธ”เธฑเธเธซเธเนเธฒ
+Main.Position = UDim2.new(0.5, -115, 0.1, 0)
+Main.BackgroundColor3 = Colors.Bg
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Parent = ScreenGui
+local Corner = Instance.new("UICorner", Main); Corner.CornerRadius = UDim.new(0, 8)
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 45, 0, 45)
+OpenBtn.Position = UDim2.new(0, 15, 0, 15)
+OpenBtn.BackgroundColor3 = Colors.Panel
+OpenBtn.Text = "๐ ๏ธ"
+OpenBtn.TextSize = 20
+OpenBtn.Visible = false
+OpenBtn.Parent = ScreenGui
+local CornerO = Instance.new("UICorner", OpenBtn); CornerO.CornerRadius = UDim.new(0, 8)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 2)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "โ–"
+CloseBtn.TextColor3 = Colors.Text
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = Main
+
+CloseBtn.Activated:Connect(function() Main.Visible = false; OpenBtn.Visible = true end)
+OpenBtn.Activated:Connect(function() Main.Visible = true; OpenBtn.Visible = false end)
+
+local dragging, dragInput, dragStart, startPos
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+BindConn(UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end))
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = " ๐ ๏ธ Utility Hub"
+Title.TextColor3 = Colors.ButtonESP
+Title.TextSize = 13
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+local PadT = Instance.new("UIPadding", Title); PadT.PaddingLeft = UDim.new(0, 12)
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -24, 0, 20)
+Status.Position = UDim2.new(0, 12, 0, 40)
+Status.BackgroundTransparency = 1
+Status.Text = "เธฃเธฐเธเธเธเธฃเนเธญเธกเนเธเนเธเธฒเธ!"
+Status.TextColor3 = Colors.Green
+Status.TextSize = 11
+Status.Font = Enum.Font.Gotham
+Status.Parent = Main
+
+-- =======================================================
+-- [เธฃเธฐเธเธเธเธฑเธ”เธเธฒเธฃเธ•เธณเนเธซเธเนเธเนเธฅเธฐเธเธธเนเธกเธฅเธฑเธ”]
+-- =======================================================
+local currentY = 70
+local function getY()
+    local y = currentY
+    currentY = currentY + 40
+    return y
+end
+
+local Bindings = {
+    Aim = Enum.KeyCode.E,
+    Lock = Enum.KeyCode.KeypadTwo,
+    Pole = Enum.KeyCode.Z,
+    Del = Enum.KeyCode.G
+}
+
+local function createHotkeyRow(yPos, text, bindKeyName, bgColor)
+    local btn = Instance.new("TextButton", Main)
+    btn.Size = UDim2.new(1, -56, 0, 35)
+    btn.Position = UDim2.new(0, 12, 0, yPos)
+    btn.BackgroundColor3 = bgColor
+    btn.Text = " " .. text
+    btn.TextColor3 = Colors.Text
+    btn.TextSize = 12
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local keyBtn = Instance.new("TextButton", Main)
+    keyBtn.Size = UDim2.new(0, 40, 0, 35)
+    keyBtn.Position = UDim2.new(1, -52, 0, yPos)
+    keyBtn.BackgroundColor3 = Colors.Panel
+    keyBtn.Text = "[" .. Bindings[bindKeyName].Name .. "]"
+    keyBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    keyBtn.TextSize = 11
+    keyBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 6)
+
+    local isBinding = false
+    keyBtn.Activated:Connect(function()
+        isBinding = true
+        keyBtn.Text = "..."
+        keyBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
+        keyBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    end)
+
+    BindConn(UserInputService.InputBegan:Connect(function(input, gp)
+        if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
+            Bindings[bindKeyName] = input.KeyCode
+            keyBtn.Text = "[" .. input.KeyCode.Name .. "]"
+            keyBtn.BackgroundColor3 = Colors.Panel
+            keyBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+            isBinding = false
+        end
+    end))
+
+    return btn, keyBtn
+end
+
+-- =======================================================
+-- เธชเธฃเนเธฒเธเธเธธเนเธกเน€เธกเธเธนเธซเธฅเธฑเธ
+-- =======================================================
+local ESPBtn = Instance.new("TextButton", Main)
+ESPBtn.Size = UDim2.new(1, -24, 0, 35); ESPBtn.Position = UDim2.new(0, 12, 0, getY()); ESPBtn.BackgroundColor3 = Colors.ButtonESP
+ESPBtn.Text = "๐‘๏ธ เน€เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ (ESP+เน€เธฅเธทเธญเธ”)"; ESPBtn.TextColor3 = Colors.Text; ESPBtn.TextSize = 12; ESPBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", ESPBtn).CornerRadius = UDim.new(0, 6)
+
+local CorpseESPBtn = Instance.new("TextButton", Main)
+CorpseESPBtn.Size = UDim2.new(1, -24, 0, 35); CorpseESPBtn.Position = UDim2.new(0, 12, 0, getY()); CorpseESPBtn.BackgroundColor3 = Colors.Corpse
+CorpseESPBtn.Text = "๐’€ เน€เธเธดเธ”เธกเธญเธเธจเธ (Loot)"; CorpseESPBtn.TextColor3 = Colors.Text; CorpseESPBtn.TextSize = 12; CorpseESPBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", CorpseESPBtn).CornerRadius = UDim.new(0, 6)
+
+local WeaponESPBtn = Instance.new("TextButton", Main)
+WeaponESPBtn.Size = UDim2.new(1, -24, 0, 35); WeaponESPBtn.Position = UDim2.new(0, 12, 0, getY()); WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
+WeaponESPBtn.Text = "๐”ซ เธเธญเธเธเธทเนเธญเธเธทเธ/เนเธญเน€เธ—เธกเธเธเธญเธทเนเธ"; WeaponESPBtn.TextColor3 = Colors.Text; WeaponESPBtn.TextSize = 12; WeaponESPBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", WeaponESPBtn).CornerRadius = UDim.new(0, 6)
+
+local DayBtn = Instance.new("TextButton", Main)
+DayBtn.Size = UDim2.new(1, -24, 0, 35); DayBtn.Position = UDim2.new(0, 12, 0, getY()); DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
+DayBtn.Text = "โ€๏ธ เธเธฅเธฒเธเธงเธฑเธ+เธชเธงเนเธฒเธเธ•เธฅเธญเธ”"; DayBtn.TextColor3 = Colors.Text; DayBtn.TextSize = 12; DayBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", DayBtn).CornerRadius = UDim.new(0, 6)
+
+local AutoDelAllBtn = Instance.new("TextButton", Main)
+AutoDelAllBtn.Size = UDim2.new(1, -24, 0, 35); AutoDelAllBtn.Position = UDim2.new(0, 12, 0, getY()); AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+AutoDelAllBtn.Text = "๐’ฅ เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ” (Delete All)"; AutoDelAllBtn.TextColor3 = Colors.Text; AutoDelAllBtn.TextSize = 12; AutoDelAllBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", AutoDelAllBtn).CornerRadius = UDim.new(0, 6)
+
+local SliderFrame = Instance.new("Frame", Main)
+SliderFrame.Size = UDim2.new(1, -24, 0, 35); SliderFrame.Position = UDim2.new(0, 12, 0, getY()); SliderFrame.BackgroundColor3 = Colors.Panel
+Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
+local SliderFill = Instance.new("Frame", SliderFrame)
+SliderFill.Size = UDim2.new(0, 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(14, 165, 233); SliderFill.BorderSizePixel = 0
+Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 6)
+local SliderText = Instance.new("TextLabel", SliderFrame)
+SliderText.Size = UDim2.new(1, 0, 1, 0); SliderText.BackgroundTransparency = 1; SliderText.Text = "๐ เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ: 16"
+SliderText.TextColor3 = Colors.Text; SliderText.TextSize = 12; SliderText.Font = Enum.Font.GothamBold; SliderText.ZIndex = 2
+local SliderBtn = Instance.new("TextButton", SliderFrame)
+SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.BackgroundTransparency = 1; SliderBtn.Text = ""; SliderBtn.ZIndex = 3
+
+local AimBtn, _ = createHotkeyRow(getY(), "๐ฏ เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒ Aimbot", "Aim", Colors.ButtonAim)
+local HardLockBtn, _ = createHotkeyRow(getY(), "๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข", "Lock", Color3.fromRGB(245, 158, 11))
+
+local FOVBtn = Instance.new("TextButton", Main)
+FOVBtn.Size = UDim2.new(1, -24, 0, 35); FOVBtn.Position = UDim2.new(0, 12, 0, getY()); FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+FOVBtn.Text = "โญ• เน€เธเธดเธ”เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ (FOV)"; FOVBtn.TextColor3 = Colors.Text; FOVBtn.TextSize = 12; FOVBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", FOVBtn).CornerRadius = UDim.new(0, 6)
+
+local FOVSliderFrame = Instance.new("Frame", Main)
+FOVSliderFrame.Size = UDim2.new(1, -24, 0, 35); FOVSliderFrame.Position = UDim2.new(0, 12, 0, getY()); FOVSliderFrame.BackgroundColor3 = Colors.Panel
+Instance.new("UICorner", FOVSliderFrame).CornerRadius = UDim.new(0, 6)
+local FOVSliderFill = Instance.new("Frame", FOVSliderFrame)
+FOVSliderFill.Size = UDim2.new(0.5, 0, 1, 0); FOVSliderFill.BackgroundColor3 = Color3.fromRGB(139, 92, 246); FOVSliderFill.BorderSizePixel = 0
+Instance.new("UICorner", FOVSliderFill).CornerRadius = UDim.new(0, 6)
+local FOVSliderText = Instance.new("TextLabel", FOVSliderFrame)
+FOVSliderText.Size = UDim2.new(1, 0, 1, 0); FOVSliderText.BackgroundTransparency = 1; FOVSliderText.Text = "โญ• เธเธเธฒเธ”เธงเธ FOV: 150"
+FOVSliderText.TextColor3 = Colors.Text; FOVSliderText.TextSize = 12; FOVSliderText.Font = Enum.Font.GothamBold; FOVSliderText.ZIndex = 2
+local FOVSliderBtn = Instance.new("TextButton", FOVSliderFrame)
+FOVSliderBtn.Size = UDim2.new(1, 0, 1, 0); FOVSliderBtn.BackgroundTransparency = 1; FOVSliderBtn.Text = ""; FOVSliderBtn.ZIndex = 3
+
+local AimPartBtn = Instance.new("TextButton", Main)
+AimPartBtn.Size = UDim2.new(1, -24, 0, 35); AimPartBtn.Position = UDim2.new(0, 12, 0, getY()); AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธฅเธณเธ•เธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.TextColor3 = Colors.Text; AimPartBtn.TextSize = 12; AimPartBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", AimPartBtn).CornerRadius = UDim.new(0, 6)
+
+local WallCheckBtn = Instance.new("TextButton", Main)
+WallCheckBtn.Size = UDim2.new(1, -24, 0, 35); WallCheckBtn.Position = UDim2.new(0, 12, 0, getY()); WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธ”เน (เธเธฅเธดเธเธชเธฅเธฑเธ)"; WallCheckBtn.TextColor3 = Colors.Text; WallCheckBtn.TextSize = 12; WallCheckBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", WallCheckBtn).CornerRadius = UDim.new(0, 6)
+
+-- [เนเธซเธกเน] เธเธธเนเธกเธขเธดเธเธ”เธฑเธเธซเธเนเธฒ Prediction
+local PredictionBtn = Instance.new("TextButton", Main)
+PredictionBtn.Size = UDim2.new(1, -24, 0, 35); PredictionBtn.Position = UDim2.new(0, 12, 0, getY()); PredictionBtn.BackgroundColor3 = Colors.Pred
+PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เธเธดเธ”"; PredictionBtn.TextColor3 = Colors.Text; PredictionBtn.TextSize = 12; PredictionBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", PredictionBtn).CornerRadius = UDim.new(0, 6)
+
+local PredSliderFrame = Instance.new("Frame", Main)
+PredSliderFrame.Size = UDim2.new(1, -24, 0, 35); PredSliderFrame.Position = UDim2.new(0, 12, 0, getY()); PredSliderFrame.BackgroundColor3 = Colors.Panel
+Instance.new("UICorner", PredSliderFrame).CornerRadius = UDim.new(0, 6)
+local PredSliderFill = Instance.new("Frame", PredSliderFrame)
+PredSliderFill.Size = UDim2.new(0.5, 0, 1, 0); PredSliderFill.BackgroundColor3 = Colors.Pred; PredSliderFill.BorderSizePixel = 0
+Instance.new("UICorner", PredSliderFill).CornerRadius = UDim.new(0, 6)
+local PredSliderText = Instance.new("TextLabel", PredSliderFrame)
+PredSliderText.Size = UDim2.new(1, 0, 1, 0); PredSliderText.BackgroundTransparency = 1; PredSliderText.Text = "๐”ฎ เธเนเธฒเธ”เธฑเธเธซเธเนเธฒเธเธฃเธฐเธชเธธเธ: 0.1"
+PredSliderText.TextColor3 = Colors.Text; PredSliderText.TextSize = 12; PredSliderText.Font = Enum.Font.GothamBold; PredSliderText.ZIndex = 2
+local PredSliderBtn = Instance.new("TextButton", PredSliderFrame)
+PredSliderBtn.Size = UDim2.new(1, 0, 1, 0); PredSliderBtn.BackgroundTransparency = 1; PredSliderBtn.Text = ""; PredSliderBtn.ZIndex = 3
+
+local AutoShootBtn = Instance.new("TextButton", Main)
+AutoShootBtn.Size = UDim2.new(1, -24, 0, 35); AutoShootBtn.Position = UDim2.new(0, 12, 0, getY()); AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เธเธดเธ”"; AutoShootBtn.TextColor3 = Colors.Text; AutoShootBtn.TextSize = 12; AutoShootBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", AutoShootBtn).CornerRadius = UDim.new(0, 6)
+
+local CreatePoleBtn, _ = createHotkeyRow(getY(), "๐งฑ เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ", "Pole", Color3.fromRGB(16, 185, 129))
+
+local TracersBtn = Instance.new("TextButton", Main)
+TracersBtn.Size = UDim2.new(1, -24, 0, 35); TracersBtn.Position = UDim2.new(0, 12, 0, getY()); TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
+TracersBtn.Text = "๐งถ เน€เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ (Tracers)"; TracersBtn.TextColor3 = Colors.Text; TracersBtn.TextSize = 12; TracersBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", TracersBtn).CornerRadius = UDim.new(0, 6)
+
+local TracerModeBtn = Instance.new("TextButton", Main)
+TracerModeBtn.Size = UDim2.new(1, -24, 0, 35); TracerModeBtn.Position = UDim2.new(0, 12, 0, getY()); TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธ—เธธเธเธเธ (เธชเธฅเธฑเธ)"; TracerModeBtn.TextColor3 = Colors.Text; TracerModeBtn.TextSize = 12; TracerModeBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", TracerModeBtn).CornerRadius = UDim.new(0, 6)
+
+local StatsBtn = Instance.new("TextButton", Main)
+StatsBtn.Size = UDim2.new(1, -24, 0, 35); StatsBtn.Position = UDim2.new(0, 12, 0, getY()); StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
+StatsBtn.Text = "๐“ เธชเนเธญเธเธเนเธญเธกเธนเธฅเน€เธเนเธฒเธซเธกเธฒเธข (Stats)"; StatsBtn.TextColor3 = Colors.Text; StatsBtn.TextSize = 12; StatsBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", StatsBtn).CornerRadius = UDim.new(0, 6)
+
+local DeleteModeBtn, _ = createHotkeyRow(getY(), "๐–ฑ๏ธ เนเธซเธกเธ”เธฅเธเธเธญเธ", "Del", Color3.fromRGB(239, 68, 68))
+
+local WarningBtn = Instance.new("TextButton", Main)
+WarningBtn.Size = UDim2.new(1, -24, 0, 35); WarningBtn.Position = UDim2.new(0, 12, 0, getY()); WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
+WarningBtn.Text = "โ ๏ธ เน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ (Raycast)"; WarningBtn.TextColor3 = Colors.Text; WarningBtn.TextSize = 12; WarningBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", WarningBtn).CornerRadius = UDim.new(0, 6)
+
+local ExitBtn = Instance.new("TextButton", Main)
+ExitBtn.Size = UDim2.new(1, -24, 0, 35); ExitBtn.Position = UDim2.new(0, 12, 0, getY()); ExitBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+ExitBtn.Text = "โ เธเธดเธ”เธชเธเธฃเธดเธเธ•เน (Exit & Clear)"; ExitBtn.TextColor3 = Colors.Text; ExitBtn.TextSize = 12; ExitBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", ExitBtn).CornerRadius = UDim.new(0, 6)
+
+
+-- =======================================================
+-- [เธฃเธฐเธเธ Aimbot FOV เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ]
+-- =======================================================
+local FOVEnabled = false
+local FOVRadius = 150
+local minFOV, maxFOV = 30, 600
+
+local FOVGui = Instance.new("ScreenGui")
+FOVGui.Name = "FOVCircleUI_" .. tostring(math.random(100000, 999999))
+FOVGui.ResetOnSpawn = false
+FOVGui.IgnoreGuiInset = true
+FOVGui.Parent = SafeGuiParent
+ProtectMyUI(FOVGui)
+_G.UtilityFOVUI = FOVGui
+
+local FOVFrame = Instance.new("Frame", FOVGui)
+FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+FOVFrame.BackgroundTransparency = 1
+FOVFrame.Visible = false
+
+local FOVStroke = Instance.new("UIStroke", FOVFrame)
+FOVStroke.Color = Color3.fromRGB(255, 255, 255)
+FOVStroke.Thickness = 1.2
+local FOVCorner = Instance.new("UICorner", FOVFrame)
+FOVCorner.CornerRadius = UDim.new(1, 0)
+
+FOVBtn.Activated:Connect(function()
+    FOVEnabled = not FOVEnabled
+    if FOVEnabled then
+        FOVBtn.Text = "โญ• เธเธดเธ”เธงเธเธเธฅเธก (เธฅเนเธญเธเธ—เธฑเนเธเธเธญ)"
+        FOVBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        FOVFrame.Visible = true
+        Status.Text = "เน€เธเธดเธ”เนเธเนเธฃเธฐเธเธ FOV (เธฅเนเธญเธเน€เธเธเธฒเธฐเนเธเธงเธเธเธฅเธก)"
+        Status.TextColor3 = Colors.Green
+    else
+        FOVBtn.Text = "โญ• เน€เธเธดเธ”เธงเธเธเธฅเธกเธฅเนเธญเธเน€เธเนเธฒ (FOV)"
+        FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+        FOVFrame.Visible = false
+        Status.Text = "เธเธดเธ”เธงเธเธเธฅเธกเนเธฅเนเธง (Aimbot เธเธฐเธฅเนเธญเธเนเธเธเธ—เธฑเนเธเธเธญ)"
+        Status.TextColor3 = Colors.Status
+    end
+end)
+
+local draggingFOV = false
+local function updateFOVSlider(input)
+    local relativeX = math.clamp(input.Position.X - FOVSliderFrame.AbsolutePosition.X, 0, FOVSliderFrame.AbsoluteSize.X)
+    local percentage = relativeX / FOVSliderFrame.AbsoluteSize.X
+    FOVRadius = math.floor(minFOV + ((maxFOV - minFOV) * percentage))
+    FOVSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+    FOVSliderText.Text = "โญ• เธเธเธฒเธ”เธงเธ FOV: " .. FOVRadius
+    FOVFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+end
+
+FOVSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingFOV = true; updateFOVSlider(input)
+    end
+end)
+BindConn(UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingFOV = false end
+end))
+BindConn(UserInputService.InputChanged:Connect(function(input)
+    if draggingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateFOVSlider(input) end
+end))
+
+BindConn(RunService.RenderStepped:Connect(function()
+    if FOVEnabled and FOVFrame.Visible then
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVFrame.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
+    end
+end))
+
+-- =======================================================
+-- [เธฃเธฐเธเธเธเธฒเธฃเธ—เธณเธเธฒเธเธ•เนเธฒเธเน]
+-- =======================================================
+
+-- 1. เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ
+local minSpeed = 16; local maxSpeed = 200; local currentSpeed = 16; local draggingSlider = false; local wasSpeedForcing = false
+local function updateSpeedSlider(input)
+    local relativeX = math.clamp(input.Position.X - SliderFrame.AbsolutePosition.X, 0, SliderFrame.AbsoluteSize.X)
+    local percentage = relativeX / SliderFrame.AbsoluteSize.X
+    currentSpeed = math.floor(minSpeed + ((maxSpeed - minSpeed) * percentage))
+    SliderFill.Size = UDim2.new(percentage, 0, 1, 0); SliderText.Text = "๐ เธเธงเธฒเธกเน€เธฃเนเธงเธงเธดเนเธ: " .. currentSpeed
+end
+SliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = true; updateSpeedSlider(input)
+    end
+end)
+BindConn(UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
+end))
+BindConn(UserInputService.InputChanged:Connect(function(input)
+    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSpeedSlider(input) end
+end))
+BindConn(RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum then
+        if currentSpeed > 16 then hum.WalkSpeed = currentSpeed; wasSpeedForcing = true
+        elseif wasSpeedForcing then hum.WalkSpeed = 16; wasSpeedForcing = false end
+    end
+end))
+
+-- 2. เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”
+local AutoDelAllEnabled = false
+local function toggleAutoDelAll()
+    AutoDelAllEnabled = not AutoDelAllEnabled
+    if AutoDelAllEnabled then
+        AutoDelAllBtn.Text = "๐’ฅ เธเธณเธฅเธฑเธเธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”..."
+        AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        pcall(function() Status.Text = "เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃเน€เธเธฅเธตเธขเธฃเนเนเธกเธ..."; Status.TextColor3 = Colors.Green end)
+        task.spawn(function()
+            local processCount = 0
+            for _, hit in pairs(workspace:GetDescendants()) do
+                if hit:IsA("BasePart") and not hit:IsA("Terrain") then
+                    if not isPlayerCharacter(hit) then
+                        if not MapDeletedObjects[hit] then
+                            MapDeletedObjects[hit] = {
+                                origTransparency = hit.Transparency, origCanCollide = hit.CanCollide, origCanQuery = hit.CanQuery
+                            }
+                            hit.CanCollide = false; hit.Transparency = 1; pcall(function() hit.CanQuery = false end)
+                        end
+                        processCount = processCount + 1
+                        if processCount % 1000 == 0 then task.wait() end
+                    end
+                end
+            end
+            pcall(function() AutoDelAllBtn.Text = "๐’ฅ เธเธทเธเธเนเธฒเนเธกเธ (Restore All)"; Status.Text = "เธฅเธเธญเธญเธเน€เธเธเธ•เนเนเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ”เนเธฅเนเธง!" end)
+        end)
+    else
+        AutoDelAllBtn.Text = "๐’ฅ เธเธณเธฅเธฑเธเธเธทเธเธเนเธฒ..."
+        AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+        pcall(function() Status.Text = "เธเธณเธฅเธฑเธเธ”เธถเธเนเธกเธเธเธฅเธฑเธเธกเธฒ..."; Status.TextColor3 = Colors.Status end)
+        task.spawn(function()
+            local processCount = 0
+            for obj, data in pairs(MapDeletedObjects) do
+                if obj then
+                    pcall(function()
+                        obj.Transparency = data.origTransparency; obj.CanCollide = data.origCanCollide
+                        if data.origCanQuery ~= nil then obj.CanQuery = data.origCanQuery end
+                    end)
+                end
+                processCount = processCount + 1
+                if processCount % 1000 == 0 then task.wait() end
+            end
+            MapDeletedObjects = {} 
+            pcall(function() AutoDelAllBtn.Text = "๐’ฅ เธฅเธเนเธกเธเธ—เธฑเนเธเธซเธกเธ” (Delete All)"; Status.Text = "เธเธทเธเธเนเธฒเนเธกเธเธเธฅเธฑเธเธกเธฒเธเธเธ•เธดเน€เธฃเธตเธขเธเธฃเนเธญเธข!" end)
+        end)
+    end
+end
+AutoDelAllBtn.Activated:Connect(toggleAutoDelAll)
+
+-- 3. ESP เธกเธญเธเธ—เธฐเธฅเธธ
+local ESPEnabled = false
+local espRenderConnection = nil
+local function RemoveESP(char)
+    if char then
+        local hl = char:FindFirstChild("PrankESP"); if hl then hl:Destroy() end
+        local hpBar = char:FindFirstChild("HealthESP"); if hpBar then hpBar:Destroy() end
+    end
+end
+local function toggleESP()
+    ESPEnabled = not ESPEnabled
+    if ESPEnabled then
+        ESPBtn.Text = "๐‘๏ธ เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ"
+        ESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        Status.Text = "ESP: เธกเธญเธเน€เธซเนเธ(เนเธ”เธ) / เธซเธฅเธฑเธเธเธณเนเธเธ(เน€เธเธตเธขเธง)"
+        Status.TextColor3 = Colors.Green
+        espRenderConnection = BindConn(RunService.RenderStepped:Connect(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local char = p.Character
+                    local hum = char:FindFirstChild("Humanoid")
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local head = char:FindFirstChild("Head") or hrp
+                    if hum and hrp and hum.Health > 0 then
+                        local hl = char:FindFirstChild("PrankESP")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "PrankESP"; hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char
+                        end
+                        local isVisible = false
+                        local rayParams = RaycastParams.new()
+                        rayParams.FilterDescendantsInstances = {LocalPlayer.Character, char}
+                        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                        rayParams.IgnoreWater = true
+                        if workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, rayParams) == nil then isVisible = true end
+                        hl.FillColor = isVisible and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+
+                        local hpBar = char:FindFirstChild("HealthESP")
+                        if not hpBar then
+                            local bb = Instance.new("BillboardGui")
+                            bb.Name = "HealthESP"; bb.AlwaysOnTop = true; bb.Size = UDim2.new(3, 0, 1.2, 0)
+                            bb.StudsOffset = Vector3.new(0, 2, 0); bb.Adornee = head; bb.Parent = char
+                            local bg = Instance.new("Frame", bg)
+                            bg.Name = "Frame"; bg.Size = UDim2.new(1, 0, 0.25, 0); bg.Position = UDim2.new(0, 0, 0.75, 0); bg.BackgroundColor3 = Color3.new(0, 0, 0); bg.BorderSizePixel = 1
+                            local fill = Instance.new("Frame", bg)
+                            fill.Name = "Fill"; fill.Size = UDim2.new(1, 0, 1, 0); fill.AnchorPoint = Vector2.new(0, 0); fill.BackgroundColor3 = Color3.new(0, 1, 0); fill.BorderSizePixel = 0
+                            local distTxt = Instance.new("TextLabel", bb)
+                            distTxt.Name = "DistText"; distTxt.Size = UDim2.new(1, 0, 0.6, 0); distTxt.Position = UDim2.new(0, 0, 0.1, 0)
+                            distTxt.BackgroundTransparency = 1; distTxt.TextColor3 = Color3.fromRGB(255, 255, 255); distTxt.TextStrokeTransparency = 0
+                            distTxt.Font = Enum.Font.GothamBold; distTxt.TextSize = 11; distTxt.Text = ""
+                        end
+                        if hpBar and hum then
+                            local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                            hpBar.Frame.Fill.Size = UDim2.new(healthPercent, 0, 1, 0)
+                            hpBar.Frame.Fill.BackgroundColor3 = Color3.new(1 - healthPercent, healthPercent, 0)
+                            local distLabel = hpBar:FindFirstChild("DistText")
+                            if distLabel then distLabel.Text = math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m" end
+                        end
+                    elseif hum and hum.Health <= 0 then RemoveESP(char) end
+                end
+            end
+        end))
+    else
+        ESPBtn.Text = "๐‘๏ธ เน€เธเธดเธ”เธกเธญเธเธ—เธฐเธฅเธธ (ESP+เน€เธฅเธทเธญเธ”)"
+        ESPBtn.BackgroundColor3 = Colors.ButtonESP
+        Status.Text = "เธเธดเธ”เนเธซเธกเธ”เธกเธญเธเธ—เธฐเธฅเธธ"
+        Status.TextColor3 = Colors.Status
+        if espRenderConnection then espRenderConnection:Disconnect(); espRenderConnection = nil end
+        for _, p in pairs(Players:GetPlayers()) do if p.Character then RemoveESP(p.Character) end end
+    end
+end
+ESPBtn.Activated:Connect(toggleESP)
+BindConn(Players.PlayerRemoving:Connect(function(p) if p.Character then RemoveESP(p.Character) end end))
+
+-- 3.5 Corpse ESP 
+local CorpseESPEnabled = false
+local CorpseFolder = Instance.new("Folder")
+CorpseFolder.Name = "CorpseESPFolder_" .. tostring(math.random(1000,9999))
+CorpseFolder.Parent = ScreenGui
+_G.UtilityCorpseFolder = CorpseFolder
+
+local function toggleCorpseESP()
+    CorpseESPEnabled = not CorpseESPEnabled
+    if CorpseESPEnabled then
+        CorpseESPBtn.Text = "๐’€ เธเธดเธ”เธกเธญเธเธจเธ"
+        CorpseESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        
+        task.spawn(function()
+            while CorpseESPEnabled do
+                local descendants = workspace:GetDescendants()
+                local processCount = 0
+                for i = 1, #descendants do
+                    if not CorpseESPEnabled then break end
+                    local obj = descendants[i]
+                    local isTarget = false; local targetPart = nil; local espName = ""; local displayName = "๐’€ เธจเธ (Loot)"
+
+                    if obj:IsA("ProximityPrompt") then
+                        local text = (obj.ActionText or "") .. " " .. (obj.ObjectText or "")
+                        if string.find(text, "เธเนเธเธซเธฒ") or string.find(text, "Search") then
+                            isTarget = true; targetPart = obj.Parent; espName = "Prompt_" .. tostring(targetPart)
+                        end
+                    elseif obj:IsA("Model") then
+                        local hum = obj:FindFirstChild("Humanoid")
+                        if hum and hum.Health <= 0 and obj ~= LocalPlayer.Character then
+                            isTarget = true; targetPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            espName = "Ragdoll_" .. obj.Name; displayName = "๐’€ เธจเธ: " .. obj.Name
+                        else
+                            local lName = string.lower(obj.Name)
+                            if lName == "corpse" or lName == "deadbody" or lName == "lootdrop" or lName == "droppedloot" then
+                                isTarget = true; targetPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"); espName = "NamedObj_" .. tostring(obj)
+                            end
+                        end
+                    elseif obj:IsA("BasePart") then
+                        local lName = string.lower(obj.Name)
+                        if lName == "corpse" or lName == "deadbody" or lName == "lootdrop" or lName == "droppedloot" then
+                            isTarget = true; targetPart = obj; espName = "NamedObj_" .. tostring(obj)
+                        end
+                    end
+
+                    if isTarget and targetPart and targetPart:IsA("BasePart") then
+                        local uniqueID = espName .. tostring(math.floor(targetPart.Position.X))
+                        if not CorpseFolder:FindFirstChild(uniqueID) then
+                            local bb = Instance.new("BillboardGui")
+                            bb.Name = uniqueID; bb.Adornee = targetPart; bb.Size = UDim2.new(0, 100, 0, 20); bb.StudsOffset = Vector3.new(0, 2, 0); bb.AlwaysOnTop = true
+                            local txt = Instance.new("TextLabel", bb)
+                            txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1; txt.Text = displayName; txt.TextColor3 = Color3.fromRGB(255, 255, 0) ; txt.TextStrokeTransparency = 0; txt.Font = Enum.Font.GothamBold; txt.TextSize = 11
+                            bb.Parent = CorpseFolder
+                            local conn; conn = targetPart.AncestryChanged:Connect(function()
+                                if not targetPart:IsDescendantOf(workspace) then bb:Destroy(); if conn then conn:Disconnect() end end
+                            end)
+                            BindConn(conn)
+                        end
+                    end
+                    processCount = processCount + 1
+                    if processCount % 500 == 0 then task.wait() end
+                end
+                for i = 1, 3 do if not CorpseESPEnabled then break end task.wait(1) end
+            end
+        end)
+    else
+        CorpseESPBtn.Text = "๐’€ เน€เธเธดเธ”เธกเธญเธเธจเธ (Loot)"
+        CorpseESPBtn.BackgroundColor3 = Colors.Corpse
+        CorpseFolder:ClearAllChildren()
+    end
+end
+CorpseESPBtn.Activated:Connect(toggleCorpseESP)
+
+-- 4. Weapon ESP
+local WeaponESPEnabled = false
+local weaponEspLoop = nil
+local function toggleWeaponESP()
+    WeaponESPEnabled = not WeaponESPEnabled
+    if WeaponESPEnabled then
+        WeaponESPBtn.Text = "๐”ซ เธเธดเธ”เธเธญเธเธเธทเนเธญเธเธทเธ"
+        WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        weaponEspLoop = BindConn(RunService.Heartbeat:Connect(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
+                    local char = p.Character
+                    local head = char.Head
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    local toolName = tool and tool.Name or "เธกเธทเธญเน€เธเธฅเนเธฒ"
+                    local bg = char:FindFirstChild("WeaponESP_UI")
+                    if not bg then
+                        bg = Instance.new("BillboardGui")
+                        bg.Name = "WeaponESP_UI"; bg.Size = UDim2.new(0, 150, 0, 20); bg.StudsOffset = Vector3.new(0, 2.8, 0)
+                        bg.AlwaysOnTop = true; bg.Adornee = head
+                        local txt = Instance.new("TextLabel", bg)
+                        txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1; txt.TextStrokeTransparency = 0
+                        txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Name = "WpnText"
+                        bg.Parent = char
+                    end
+                    if tool then bg.WpnText.Text = "๐”ซ " .. toolName; bg.WpnText.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    else bg.WpnText.Text = "โ เธกเธทเธญเน€เธเธฅเนเธฒ"; bg.WpnText.TextColor3 = Color3.fromRGB(200, 200, 200) end
+                end
+            end
+        end))
+    else
+        WeaponESPBtn.Text = "๐”ซ เธเธญเธเธเธทเนเธญเธเธทเธ/เนเธญเน€เธ—เธกเธเธเธญเธทเนเธ"
+        WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
+        if weaponEspLoop then weaponEspLoop:Disconnect(); weaponEspLoop = nil end
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character then local bg = p.Character:FindFirstChild("WeaponESP_UI"); if bg then bg:Destroy() end end
+        end
+    end
+end
+WeaponESPBtn.Activated:Connect(toggleWeaponESP)
+
+-- 5. Always Day
+local AlwaysDayEnabled = false
+local dayConnection = nil
+local function toggleDay()
+    AlwaysDayEnabled = not AlwaysDayEnabled
+    local Lighting = game:GetService("Lighting")
+    if AlwaysDayEnabled then
+        DayBtn.Text = "โ€๏ธ เธเธดเธ”เธชเธงเนเธฒเธ/เน€เธเนเธฒเธ•เธฅเธญเธ”"
+        DayBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        origAmbient = Lighting.Ambient; origOutdoorAmbient = Lighting.OutdoorAmbient; origShadows = Lighting.GlobalShadows
+        Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false
+        dayConnection = BindConn(Lighting.Changed:Connect(function()
+            if AlwaysDayEnabled then Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false end
+        end))
+    else
+        DayBtn.Text = "โ€๏ธ เธเธฅเธฒเธเธงเธฑเธ+เธชเธงเนเธฒเธเธ•เธฅเธญเธ”"
+        DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
+        if dayConnection then dayConnection:Disconnect(); dayConnection = nil end
+        Lighting.Ambient = origAmbient or Color3.fromRGB(127, 127, 127)
+        Lighting.OutdoorAmbient = origOutdoorAmbient or Color3.fromRGB(127, 127, 127)
+        if origShadows ~= nil then Lighting.GlobalShadows = origShadows end
+    end
+end
+DayBtn.Activated:Connect(toggleDay)
+
+-- =======================================================
+-- [ เธญเธฑเธเน€เธ”เธ•เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ + เธญเธญเนเธ•เนเธขเธดเธ ] 6. Aimbot 
+-- =======================================================
+local isAimbotting = false
+local aimbotConnection = nil
+local currentTarget = nil 
+local AimTargetPart = "HumanoidRootPart"
+local WallCheckEnabled = false
+
+local AutoShootEnabled = false
+local lastAutoShoot = 0
+
+local PredictionEnabled = false
+local PredictionAmt = 0.1
+local draggingPred = false
+
+-- เธเธธเนเธกเน€เธเธดเธ”-เธเธดเธ”เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ
+PredictionBtn.Activated:Connect(function()
+    PredictionEnabled = not PredictionEnabled
+    if PredictionEnabled then
+        PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เน€เธเธดเธ”"
+        PredictionBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+        Status.Text = "เน€เธเธดเธ”เธเธณเธเธงเธ“เธเธดเธชเธดเธเธชเนเธขเธดเธเธ”เธฑเธเธซเธเนเธฒเน€เธเนเธฒเธซเธกเธฒเธขเนเธฅเนเธง"
+    else
+        PredictionBtn.Text = "๐”ฎ เธขเธดเธเธ”เธฑเธเธซเธเนเธฒ (Prediction): เธเธดเธ”"
+        PredictionBtn.BackgroundColor3 = Colors.Pred
+        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเธขเธดเธเธ”เธฑเธเธซเธเนเธฒเนเธฅเนเธง"
+    end
+    Status.TextColor3 = Colors.Green
+end)
+
+local function updatePredSlider(input)
+    local relativeX = math.clamp(input.Position.X - PredSliderFrame.AbsolutePosition.X, 0, PredSliderFrame.AbsoluteSize.X)
+    local percentage = relativeX / PredSliderFrame.AbsoluteSize.X
+    PredictionAmt = math.floor((0.01 + (0.5 - 0.01) * percentage) * 100) / 100 -- เธเนเธฒเธฃเธฐเธซเธงเนเธฒเธ 0.01 เธ–เธถเธ 0.50
+    PredSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+    PredSliderText.Text = "๐”ฎ เธเนเธฒเธ”เธฑเธเธซเธเนเธฒเธเธฃเธฐเธชเธธเธ: " .. tostring(PredictionAmt)
+end
+
+PredSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingPred = true; updatePredSlider(input)
+    end
+end)
+BindConn(UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingPred = false end
+end))
+BindConn(UserInputService.InputChanged:Connect(function(input)
+    if draggingPred and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updatePredSlider(input) end
+end))
+
+AutoShootBtn.Activated:Connect(function()
+    AutoShootEnabled = not AutoShootEnabled
+    if AutoShootEnabled then
+        AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เน€เธเธดเธ”"
+        AutoShootBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+        Status.Text = "เน€เธเธดเธ”เนเธเนเธญเธญเนเธ•เนเธขเธดเธ (TriggerBot) เนเธฅเนเธง"
+        Status.TextColor3 = Colors.Green
+    else
+        AutoShootBtn.Text = "๐”ซ เธญเธญเนเธ•เนเธขเธดเธเน€เธกเธทเนเธญเธฅเนเธญเธเน€เธเนเธฒ: เธเธดเธ”"
+        AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+        Status.Text = "เธเธดเธ”เธเธฒเธฃเธญเธญเนเธ•เนเธขเธดเธเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Status
+    end
+end)
+
+AimPartBtn.Activated:Connect(function()
+    if AimTargetPart == "HumanoidRootPart" then
+        AimTargetPart = "Head"
+        AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธซเธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธข Aimbot: เธซเธฑเธง (Head)"
+    else
+        AimTargetPart = "HumanoidRootPart"
+        AimPartBtn.Text = "๐ฏ เน€เธฅเนเธ: เธฅเธณเธ•เธฑเธง (เธชเธฅเธฑเธเน€เธเนเธฒ)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+        Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธข Aimbot: เธฅเธณเธ•เธฑเธง (Torso)"
+    end
+    Status.TextColor3 = Colors.Green
+end)
+
+WallCheckBtn.Activated:Connect(function()
+    WallCheckEnabled = not WallCheckEnabled
+    if WallCheckEnabled then
+        WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธกเนเนเธ”เน (เธฅเนเธญเธเนเธเนเธ•เธฑเธงเนเธ”เธ)"
+        WallCheckBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        Status.Text = "เนเธซเธกเธ” Aimbot: เธฅเนเธญเธเน€เธเธเธฒเธฐเธเธเธ—เธตเนเธกเธญเธเน€เธซเนเธเน€เธ—เนเธฒเธเธฑเนเธ"
+    else
+        WallCheckBtn.Text = "๐งฑ เธ—เธฐเธฅเธธเธเธณเนเธเธ: เนเธ”เน (เธเธฅเธดเธเธชเธฅเธฑเธ)"
+        WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+        Status.Text = "เนเธซเธกเธ” Aimbot: เธ—เธฐเธฅเธธเธเธณเนเธเธเนเธ”เน"
+    end
+    Status.TextColor3 = Colors.Green
+end)
+
+local function stopAimbot()
+    isAimbotting = false
+    hardLockedPlayer = nil
+    currentTarget = nil
+    if aimbotConnection then aimbotConnection:Disconnect() end
+    AimBtn.Text = " ๐ฏ เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒ Aimbot"
+    AimBtn.BackgroundColor3 = Colors.ButtonAim
+end
+
+local function ProcessAutoShoot()
+    if AutoShootEnabled then
+        if tick() - lastAutoShoot > 0.05 then 
+            lastAutoShoot = tick()
+            if mouse1click then
+                mouse1click()
+            else
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton1(Vector2.new(0,0))
+            end
+        end
+    end
+end
+
+local function toggleAimbot()
+    if isAimbotting then
+        stopAimbot()
+        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Status
+        return
+    end
+    isAimbotting = true
+    AimBtn.Text = " ๐ฏ เธเธณเธฅเธฑเธเน€เธฅเนเธ..."
+    AimBtn.BackgroundColor3 = Colors.Green
+    Status.Text = "เธเธณเธฅเธฑเธเธซเธฑเธเธเธฅเนเธญเธเธซเธฒเน€เธเนเธฒเธซเธกเธฒเธข!"
+    Status.TextColor3 = Colors.ButtonAim
+
+    aimbotConnection = BindConn(RunService.RenderStepped:Connect(function()
+        if hardLockedPlayer then
+            if hardLockedPlayer.Character and hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart") and hardLockedPlayer.Character:FindFirstChild("Humanoid") and hardLockedPlayer.Character.Humanoid.Health > 0 then
+                local targetPartObj = hardLockedPlayer.Character:FindFirstChild(AimTargetPart) or hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart")
+                
+                local canAim = true
+                if WallCheckEnabled then
+                    local rayParams = RaycastParams.new()
+                    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, hardLockedPlayer.Character}
+                    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                    rayParams.IgnoreWater = true
+                    if workspace:Raycast(Camera.CFrame.Position, targetPartObj.Position - Camera.CFrame.Position, rayParams) ~= nil then
+                        canAim = false
+                    end
+                end
+                
+                if canAim then
+                    local aimPos = targetPartObj.Position
+                    if PredictionEnabled then
+                        local vel = targetPartObj.AssemblyLinearVelocity
+                        if vel then aimPos = aimPos + (vel * PredictionAmt) end
+                    end
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+                    ProcessAutoShoot() 
+                end
+                return 
+            else
+                hardLockedPlayer = nil
+                Status.Text = "เน€เธเนเธฒเธซเธกเธฒเธขเธ—เธตเนเธฅเนเธญเธเธซเธฒเธขเนเธ (เธเธฅเธฑเธเธชเธนเนเนเธซเธกเธ”เธซเธฒเธ•เธฒเธกเน€เธกเธฒเธชเน)"
+            end
+        end
+        
+        local closestPlayer = nil
+        local shortestDistance = math.huge
+        local mousePos = UserInputService:GetMouseLocation()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                local partToAim = p.Character:FindFirstChild(AimTargetPart) or p.Character:FindFirstChild("HumanoidRootPart")
+                local pos, onScreen = Camera:WorldToViewportPoint(partToAim.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                    local isValidTarget = true
+                    
+                    if FOVEnabled and dist > FOVRadius then isValidTarget = false end
+                    
+                    if WallCheckEnabled and isValidTarget then
+                        local rayParams = RaycastParams.new()
+                        rayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character}
+                        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                        rayParams.IgnoreWater = true
+                        if workspace:Raycast(Camera.CFrame.Position, partToAim.Position - Camera.CFrame.Position, rayParams) ~= nil then 
+                            isValidTarget = false 
+                        end
+                    end
+                    
+                    if isValidTarget and dist < shortestDistance then
+                        closestPlayer = p
+                        shortestDistance = dist
+                    end
+                end
+            end
+        end
+        currentTarget = closestPlayer
+        
+        if currentTarget and currentTarget.Character then
+            local targetPartObj = currentTarget.Character:FindFirstChild(AimTargetPart) or currentTarget.Character:FindFirstChild("HumanoidRootPart")
+            local aimPos = targetPartObj.Position
+            if PredictionEnabled then
+                local vel = targetPartObj.AssemblyLinearVelocity
+                if vel then aimPos = aimPos + (vel * PredictionAmt) end
+            end
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+            ProcessAutoShoot() 
+        end
+    end))
+end
+AimBtn.Activated:Connect(toggleAimbot)
+
+HardLockBtn.Activated:Connect(function()
+    if isAimbotting then
+        if hardLockedPlayer then
+            hardLockedPlayer = nil
+            Status.Text = "เธเธฅเธ”เธฅเนเธญเธเน€เธเธฒเธฐเธเธ (เน€เธฅเนเธเธ•เธฒเธกเน€เธกเธฒเธชเนเธ•เนเธญ)"
+            HardLockBtn.Text = " ๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข"
+            HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+        else
+            if currentTarget then
+                hardLockedPlayer = currentTarget
+                Status.Text = "๐”’ เธฅเนเธญเธเธ•เธฒเธขเธ•เธฑเธงเธ—เธตเน: " .. hardLockedPlayer.Name
+                HardLockBtn.Text = " ๐”’ เธเธฅเธ”เธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+            end
+        end
+    end
+end)
+
+-- 7. Stats Panel
+local StatsEnabled = false
+local StatsPanel = Instance.new("Frame")
+StatsPanel.Size = UDim2.new(0, 200, 0, 130)
+StatsPanel.Position = UDim2.new(0.05, 0, 0.4, 0)
+StatsPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+StatsPanel.BorderSizePixel = 1; StatsPanel.BorderColor3 = Color3.fromRGB(14, 165, 233)
+StatsPanel.Visible = false; StatsPanel.Active = true; StatsPanel.Parent = ScreenGui
+Instance.new("UICorner", StatsPanel).CornerRadius = UDim.new(0, 6)
+
+local statDrag, statInput, statDragStart, statStartPos
+StatsPanel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        statDrag = true; statDragStart = input.Position; statStartPos = StatsPanel.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then statDrag = false end end)
+    end
+end)
+BindConn(UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then statInput = input end
+    if input == statInput and statDrag then
+        local delta = input.Position - statDragStart
+        StatsPanel.Position = UDim2.new(statStartPos.X.Scale, statStartPos.X.Offset + delta.X, statStartPos.Y.Scale, statStartPos.Y.Offset + delta.Y)
+    end
+end))
+
+local StatTitle = Instance.new("TextLabel", StatsPanel)
+StatTitle.Size = UDim2.new(1, 0, 0, 25); StatTitle.BackgroundTransparency = 1
+StatTitle.Text = "๐ฏ เน€เธเนเธฒเธซเธกเธฒเธข Aimbot"; StatTitle.TextColor3 = Color3.fromRGB(14, 165, 233)
+StatTitle.Font = Enum.Font.GothamBold; StatTitle.TextSize = 13
+
+local StatName = Instance.new("TextLabel", StatsPanel)
+StatName.Size = UDim2.new(1, -10, 0, 20); StatName.Position = UDim2.new(0, 10, 0, 30)
+StatName.BackgroundTransparency = 1; StatName.TextXAlignment = Enum.TextXAlignment.Left
+StatName.TextColor3 = Colors.Text; StatName.Font = Enum.Font.Gotham; StatName.TextSize = 12
+
+local StatHP = Instance.new("TextLabel", StatsPanel)
+StatHP.Size = UDim2.new(1, -10, 0, 20); StatHP.Position = UDim2.new(0, 10, 0, 50)
+StatHP.BackgroundTransparency = 1; StatHP.TextXAlignment = Enum.TextXAlignment.Left
+StatHP.TextColor3 = Colors.Green; StatHP.Font = Enum.Font.Gotham; StatHP.TextSize = 12
+
+local StatWeapon = Instance.new("TextLabel", StatsPanel)
+StatWeapon.Size = UDim2.new(1, -10, 0, 20); StatWeapon.Position = UDim2.new(0, 10, 0, 70)
+StatWeapon.BackgroundTransparency = 1; StatWeapon.TextXAlignment = Enum.TextXAlignment.Left
+StatWeapon.TextColor3 = Color3.fromRGB(236, 72, 153); StatWeapon.Font = Enum.Font.Gotham; StatWeapon.TextSize = 12
+
+local StatDist = Instance.new("TextLabel", StatsPanel)
+StatDist.Size = UDim2.new(1, -10, 0, 20); StatDist.Position = UDim2.new(0, 10, 0, 90)
+StatDist.BackgroundTransparency = 1; StatDist.TextXAlignment = Enum.TextXAlignment.Left
+StatDist.TextColor3 = Color3.fromRGB(250, 204, 21); StatDist.Font = Enum.Font.Gotham; StatDist.TextSize = 12
+
+local function toggleStats()
+    StatsEnabled = not StatsEnabled
+    if StatsEnabled then
+        StatsBtn.Text = "๐“ เธเธดเธ”เธซเธเนเธฒเธ•เนเธฒเธเธเนเธญเธกเธนเธฅ"
+        StatsBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        StatsPanel.Visible = true
+        Status.Text = "เน€เธเธดเธ”เนเธ—เธฃเนเธเธเนเธญเธกเธนเธฅเธจเธฑเธ•เธฃเธนเธ—เธตเนเธเธฐเธฅเนเธญเธเน€เธเนเธฒเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Green
+    else
+        StatsBtn.Text = "๐“ เธชเนเธญเธเธเนเธญเธกเธนเธฅเน€เธเนเธฒเธซเธกเธฒเธข (Stats)"
+        StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
+        StatsPanel.Visible = false
+        Status.Text = "เธเธดเธ”เธซเธเนเธฒเธ•เนเธฒเธเนเธ—เธฃเนเธเธเนเธญเธกเธนเธฅ"
+        Status.TextColor3 = Colors.Status
+    end
+end
+StatsBtn.Activated:Connect(toggleStats)
+
+-- 8. Tracers ESP 
+local TracersEnabled = false
+local TracerMode = "All" 
+local TracerFolder = Instance.new("Folder")
+TracerFolder.Name = "TracersFolder"
+TracerFolder.Parent = ScreenGui
+
+local function getTracerLine(player)
+    if not tracerLines[player] then
+        local line = Instance.new("Frame")
+        line.Name = player.Name .. "_Tracer"
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
+        line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        line.BorderSizePixel = 0; line.ZIndex = 1; line.Visible = false
+        line.Parent = TracerFolder
+        tracerLines[player] = line
+    end
+    return tracerLines[player]
+end
+
+local function clearTracers()
+    for _, line in pairs(tracerLines) do if line then line:Destroy() end end
+    tracerLines = {}
+end
+
+local function toggleTracers()
+    TracersEnabled = not TracersEnabled
+    if TracersEnabled then
+        TracersBtn.Text = "๐งถ เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ"
+        TracersBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        Status.Text = "เน€เธเธดเธ”เน€เธชเนเธเธฅเธฒเธเน€เธเนเธฒเธซเธฒเธจเธฑเธ•เธฃเธนเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Green
+    else
+        TracersBtn.Text = "๐งถ เน€เธเธดเธ”เน€เธชเนเธเธเธตเนเน€เธเนเธฒ (Tracers)"
+        TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
+        Status.Text = "เธเธดเธ”เน€เธชเนเธเธฅเธฒเธเน€เธเนเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธข"
+        Status.TextColor3 = Colors.Status
+        clearTracers()
+    end
+end
+TracersBtn.Activated:Connect(toggleTracers)
+
+TracerModeBtn.Activated:Connect(function()
+    if TracerMode == "All" then
+        TracerMode = "Closest"
+        TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธเธเธ—เธตเนเธ–เธนเธเธฅเนเธญเธ (เธชเธฅเธฑเธ)"
+        TracerModeBtn.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
+        Status.Text = "เน€เธชเนเธเธเธฐเธฅเธฒเธเนเธเธซเธฒเธเธเธ—เธตเนเธเธณเธฅเธฑเธเน€เธฅเนเธเธญเธขเธนเนเน€เธ—เนเธฒเธเธฑเนเธ!"
+    else
+        TracerMode = "All"
+        TracerModeBtn.Text = "๐งถ เนเธซเธกเธ”เน€เธชเนเธ: เธ—เธธเธเธเธ (เธชเธฅเธฑเธ)"
+        TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+        Status.Text = "เน€เธชเนเธเธเธฐเธฅเธฒเธเนเธเธซเธฒเธ—เธธเธเธเธเนเธเนเธกเธ!"
+    end
+    Status.TextColor3 = Colors.Green
+end)
+
+-- เธฅเธนเธเธเธฒเธฃเนเธชเธ”เธเธเธฅเธฃเนเธงเธกเธเธญเธ Stats & Tracers
+BindConn(RunService.RenderStepped:Connect(function()
+    local displayTarget = nil
+    
+    if hardLockedPlayer and hardLockedPlayer.Character and hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart") and hardLockedPlayer.Character:FindFirstChild("Humanoid") and hardLockedPlayer.Character.Humanoid.Health > 0 then
+        displayTarget = hardLockedPlayer
+    else
+        local shortestDistance = math.huge
+        local mousePos = UserInputService:GetMouseLocation()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                    local isValidTarget = true
+                    if FOVEnabled and dist > FOVRadius then isValidTarget = false end
+                    
+                    if isValidTarget and dist < shortestDistance then
+                        displayTarget = p
+                        shortestDistance = dist
+                    end
+                end
+            end
+        end
+    end
+    
+    if StatsEnabled then
+        if displayTarget and displayTarget.Character then
+            local hum = displayTarget.Character:FindFirstChild("Humanoid")
+            local tool = displayTarget.Character:FindFirstChildOfClass("Tool")
+            StatName.Text = "๐‘ค เธเธทเนเธญ: " .. displayTarget.DisplayName
+            if hum then StatHP.Text = "โค๏ธ เน€เธฅเธทเธญเธ”: " .. math.floor(hum.Health) .. " / " .. math.floor(hum.MaxHealth) end
+            StatWeapon.Text = "๐”ซ เธญเธฒเธงเธธเธ: " .. (tool and tool.Name or "เธกเธทเธญเน€เธเธฅเนเธฒ")
+            local hrp = displayTarget.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: " .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m"
+            else StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: -" end
+        else
+            StatName.Text = "๐‘ค เธเธทเนเธญ: (เนเธกเนเธเธเน€เธเนเธฒเธซเธกเธฒเธข)"; StatHP.Text = "โค๏ธ เน€เธฅเธทเธญเธ”: -"; StatWeapon.Text = "๐”ซ เธญเธฒเธงเธธเธ: -"; StatDist.Text = "๐“ เธฃเธฐเธขเธฐเธซเนเธฒเธ: -"
+        end
+    end
+
+    if TracersEnabled then
+        for player, line in pairs(tracerLines) do
+            if not player or not player.Parent or not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
+                line:Destroy(); tracerLines[player] = nil
+            end
+        end
+
+        local startPosVector2
+        if StatsEnabled and StatsPanel.Visible then
+            startPosVector2 = Vector2.new(StatsPanel.AbsolutePosition.X + (StatsPanel.AbsoluteSize.X / 2), StatsPanel.AbsolutePosition.Y + 12)
+        else
+            startPosVector2 = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+        end
+
+        for _, p in pairs(Players:GetPlayers()) do
+            local shouldDraw = false
+            if TracerMode == "All" then shouldDraw = true
+            elseif TracerMode == "Closest" and p == displayTarget then shouldDraw = true end
+
+            if shouldDraw and p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                local rootPart = p.Character.HumanoidRootPart
+                local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                
+                if onScreen then
+                    local line = getTracerLine(p)
+                    local distLine = (startPosVector2 - Vector2.new(pos.X, pos.Y)).Magnitude
+                    local center = (startPosVector2 + Vector2.new(pos.X, pos.Y)) / 2
+                    local angle = math.atan2(pos.Y - startPosVector2.Y, pos.X - startPosVector2.X)
+                    
+                    if AimingPlayers[p] then
+                        line.BackgroundColor3 = Color3.fromRGB(74, 222, 128)
+                        line.ZIndex = 2
+                    else
+                        line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+                        line.ZIndex = 1
+                    end
+                    
+                    line.Position = UDim2.new(0, center.X, 0, center.Y)
+                    line.Size = UDim2.new(0, distLine, 0, 1.5)
+                    line.Rotation = math.deg(angle)
+                    line.Visible = true
+                else
+                    if tracerLines[p] then tracerLines[p].Visible = false end
+                end
+            else
+                if tracerLines[p] then tracerLines[p].Visible = false end
+            end
+        end
+    end
+end))
+
+-- 9. เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ
+local PoleModeEnabled = false
+local poleMouse = LocalPlayer:GetMouse()
+
+local function togglePoleMode()
+    PoleModeEnabled = not PoleModeEnabled
+    if PoleModeEnabled then
+        CreatePoleBtn.Text = " ๐งฑ เธเธดเธ”เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ (เธฅเธเธ—เธดเนเธ)"
+        CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        Status.Text = "เน€เธเธดเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ (เธเธตเนเน€เธกเธฒเธชเนเนเธเธ—เธตเนเธเธทเนเธเนเธฅเนเธงเธเธ”เธเธธเนเธกเธฅเธฑเธ”)"
+        Status.TextColor3 = Colors.Green
+    else
+        CreatePoleBtn.Text = " ๐งฑ เนเธซเธกเธ”เธชเธฃเนเธฒเธเน€เธชเธฒเธเธตเธ"
+        CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+        Status.Text = "เธเธดเธ”เธชเธฃเนเธฒเธเน€เธชเธฒ + เน€เธเธฅเธตเธขเธฃเนเน€เธชเธฒเธ—เธฑเนเธเธซเธกเธ”เน€เธฃเธตเธขเธเธฃเนเธญเธข"
+        Status.TextColor3 = Colors.Status
+        
+        for _, pole in ipairs(SpawnedPoles) do
+            if pole and pole.Parent then pole:Destroy() end
+        end
+        SpawnedPoles = {}
+    end
+end
+CreatePoleBtn.Activated:Connect(togglePoleMode)
+
+-- 10. Delete Mode เนเธซเธกเธ”เธเนเธญเธเธงเธฑเธ•เธ–เธธ
+local DeleteModeEnabled = false
+local hoverHighlight = Instance.new("Highlight")
+hoverHighlight.Name = "DeleteHoverHighlight"
+hoverHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+hoverHighlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+hoverHighlight.FillTransparency = 0.5
+hoverHighlight.OutlineTransparency = 0
+hoverHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+hoverHighlight.Parent = SafeGuiParent
+hoverHighlight.Enabled = false 
+
+local deleteRenderConnection = nil
+local currentHoverObject = nil
+local deleteMouse = LocalPlayer:GetMouse()
+
+local function ToggleDeleteMode()
+    DeleteModeEnabled = not DeleteModeEnabled
+    if DeleteModeEnabled then
+        DeleteModeBtn.Text = " ๐–ฑ๏ธ เธเธดเธ”เนเธซเธกเธ”เธฅเธเธเธญเธ"
+        DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        Status.Text = "เนเธซเธกเธ”เธฅเธ: เน€เธเธดเธ” (เธเธฅเธดเธเน€เธกเธฒเธชเนเธเธฅเธฒเธเธเนเธญเธเธเธญเธ)"
+        Status.TextColor3 = Color3.fromRGB(255, 50, 50)
+        hoverHighlight.Enabled = true 
+        
+        deleteRenderConnection = BindConn(RunService.RenderStepped:Connect(function()
+            local target = deleteMouse.Target
+            if target and not target.Locked and not isPlayerCharacter(target) then
+                if currentHoverObject ~= target then
+                    currentHoverObject = target
+                    hoverHighlight.Adornee = currentHoverObject
+                end
+            else
+                currentHoverObject = nil
+                hoverHighlight.Adornee = nil
+            end
+        end))
+    else
+        DeleteModeBtn.Text = " ๐–ฑ๏ธ เนเธซเธกเธ”เธฅเธเธเธญเธ"
+        DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        Status.Text = "เนเธซเธกเธ”เธฅเธ: เธเธดเธ” (เธเธทเธเธเนเธฒเธ—เธตเนเธเธฅเธดเธเธฅเธเนเธเนเธฅเนเธง)"
+        Status.TextColor3 = Colors.Green
+        
+        if deleteRenderConnection then deleteRenderConnection:Disconnect(); deleteRenderConnection = nil end
+        currentHoverObject = nil
+        hoverHighlight.Adornee = nil
+        hoverHighlight.Enabled = false 
+        
+        for _, data in ipairs(ClickDeletedObjects) do
+            if data.obj then
+                pcall(function()
+                    data.obj.Transparency = data.origTransparency
+                    data.obj.CanCollide = data.origCanCollide
+                    if data.origCanQuery ~= nil then data.obj.CanQuery = data.origCanQuery end
+                end)
+            end
+        end
+        ClickDeletedObjects = {} 
+    end
+end
+DeleteModeBtn.Activated:Connect(ToggleDeleteMode)
+
+-- 11. Warning System 
+local WarningEnabled = false
+local WarnGui = Instance.new("ScreenGui", SafeGuiParent)
+WarnGui.Name = "AntiAimWarningUI_" .. tostring(math.random(100000, 999999))
+local WarnText = Instance.new("TextLabel", WarnGui)
+WarnText.Size = UDim2.new(1, 0, 0, 100); WarnText.Position = UDim2.new(0, 0, 0.15, 0)
+WarnText.BackgroundTransparency = 1; WarnText.TextColor3 = Color3.fromRGB(255, 50, 50)
+WarnText.TextStrokeColor3 = Color3.new(0, 0, 0); WarnText.TextStrokeTransparency = 0
+WarnText.TextSize = 28; WarnText.Font = Enum.Font.GothamBold; WarnText.Text = ""
+WarnText.Visible = false
+ProtectMyUI(WarnGui)
+_G.UtilityWarningUI = WarnGui
+
+local function toggleWarning()
+    WarningEnabled = not WarningEnabled
+    if WarningEnabled then
+        WarningBtn.Text = "โ ๏ธ เธเธดเธ”เธฃเธฐเธเธเน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ"
+        WarningBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+        Status.Text = "เน€เธเธดเธ”เน€เธฃเธ”เธฒเธฃเน Raycast เน€เธเนเธเธ—เธดเธจเธ—เธฒเธเธเธทเธเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Green
+    else
+        WarningBtn.Text = "โ ๏ธ เน€เธ•เธทเธญเธเธ เธฑเธขเธเธฃเธฐเธเธญเธเธเธทเธ (Raycast)"
+        WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
+        Status.Text = "เธเธดเธ”เธฃเธฐเธเธเนเธเนเธเน€เธ•เธทเธญเธเน€เธฃเธ”เธฒเธฃเนเนเธฅเนเธง"
+        Status.TextColor3 = Colors.Status
+        WarnText.Visible = false
+        AimingPlayers = {}
+    end
+end
+WarningBtn.Activated:Connect(toggleWarning)
+
+BindConn(RunService.RenderStepped:Connect(function()
+    if not WarningEnabled then 
+        AimingPlayers = {}
+        WarnText.Visible = false
+        return 
+    end
+    
+    local currentAimers = {}
+    local firstAimerName = ""
+    
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local myHRP = LocalPlayer.Character.HumanoidRootPart
+        local myPos = myHRP.Position
+        
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local hum = p.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local enemyChar = p.Character
+                    local tool = enemyChar:FindFirstChildOfClass("Tool")
+                    
+                    local muzzlePos = nil
+                    if tool then
+                        local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+                        if handle then muzzlePos = handle.Position end
+                    end
+                    
+                    if not muzzlePos then
+                        local rightArm = enemyChar:FindFirstChild("Right Arm") or enemyChar:FindFirstChild("RightHand")
+                        muzzlePos = rightArm and rightArm.Position or enemyChar.HumanoidRootPart.Position
+                    end
+                    
+                    local dirToMe = (myPos - muzzlePos)
+                    local distance = dirToMe.Magnitude
+                    
+                    if distance < 600 then 
+                        dirToMe = dirToMe.Unit
+                        local lookPart = enemyChar:FindFirstChild("Head") or enemyChar.HumanoidRootPart
+                        if lookPart then
+                            local lookVector = lookPart.CFrame.LookVector
+                            if lookVector:Dot(dirToMe) > 0.92 then 
+                                currentAimers[p] = true
+                                if firstAimerName == "" then firstAimerName = p.Name end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    AimingPlayers = currentAimers
+    
+    if firstAimerName ~= "" then
+        WarnText.Text = "โ ๏ธ เธฃเธฐเธงเธฑเธ! [" .. firstAimerName .. "] เธเธณเธฅเธฑเธเธซเธฑเธเธเธฃเธฐเธเธญเธเธเธทเธเน€เธฅเนเธเธเธธเธ“! โ ๏ธ"; WarnText.Visible = true
+    else 
+        WarnText.Visible = false 
+    end
+end))
+
+-- =======================================================
+-- [Input Handling] เธเธฑเธ”เธเธฒเธฃเธฃเธฑเธเธเธธเนเธกเธฅเธฑเธ”
+-- =======================================================
+BindConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Bindings.Aim then
+        toggleAimbot()
+    elseif input.KeyCode == Bindings.Lock then 
+        if isAimbotting then
+            if hardLockedPlayer then
+                hardLockedPlayer = nil
+                Status.Text = "เธเธฅเธ”เธฅเนเธญเธเน€เธเธฒเธฐเธเธ (เน€เธฅเนเธเธ•เธฒเธกเน€เธกเธฒเธชเนเธ•เนเธญ)"
+                HardLockBtn.Text = " ๐”’ เธเธธเนเธกเธฅเนเธญเธเน€เธเธฒเธฐเธเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+            else
+                if currentTarget then
+                    hardLockedPlayer = currentTarget
+                    Status.Text = "๐”’ เธฅเนเธญเธเธ•เธฒเธขเธ•เธฑเธงเธ—เธตเน: " .. hardLockedPlayer.Name
+                    HardLockBtn.Text = " ๐”’ เธเธฅเธ”เธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข"
+                    HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+                end
+            end
+        end
+    elseif input.KeyCode == Bindings.Del then
+        ToggleDeleteMode()
+    end
+    
+    if input.KeyCode == Bindings.Pole and PoleModeEnabled then
+        local hit = poleMouse.Hit
+        if hit then
+            local truss = Instance.new("TrussPart")
+            truss.Size = Vector3.new(2, 40, 2); truss.Position = hit.Position + Vector3.new(0, 20, 0) 
+            truss.Anchored = true; truss.BrickColor = BrickColor.new("Bright yellow") 
+            truss.Material = Enum.Material.Neon; truss.Parent = workspace
+            table.insert(SpawnedPoles, truss)
+        end
+    end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton3 then
+        if DeleteModeEnabled and currentHoverObject then
+            table.insert(ClickDeletedObjects, {
+                obj = currentHoverObject,
+                origTransparency = currentHoverObject.Transparency,
+                origCanCollide = currentHoverObject.CanCollide,
+                origCanQuery = currentHoverObject.CanQuery
+            })
+            currentHoverObject.CanCollide = false
+            currentHoverObject.Transparency = 1
+            pcall(function() currentHoverObject.CanQuery = false end)
+            currentHoverObject = nil
+            hoverHighlight.Adornee = nil
+        end
+    end
+end))
+
+-- =======================================================
+-- [เธฃเธฐเธเธเธชเธฑเนเธเธเธฒเธฃเธฃเธฐเน€เธเธดเธ”เธ•เธฑเธงเน€เธญเธเธเนเธฒเธเธเธธเนเธก UI]
+-- =======================================================
+ExitBtn.Activated:Connect(function()
+    if _G.UtilityHubCleanup then
+        _G.UtilityHubCleanup()
+    end
+end)
