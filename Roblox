@@ -1,1424 +1,1210 @@
-if not game:IsLoaded() then game.Loaded:Wait() end
+local player = game:GetService("Players").LocalPlayer
+local rs = game:GetService("ReplicatedStorage")
+local httpService = game:GetService("HttpService")
+local teleportService = game:GetService("TeleportService")
+local tweenService = game:GetService("TweenService")
+local runService = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+local virtualUser = game:GetService("VirtualUser")
 
--- =======================================================
--- [ระบบ Master Cleanup ป้องกันซอมบี้สคริปต์และบัคค้าง]
--- =======================================================
-if _G.UtilityHubCleanup then
-    pcall(_G.UtilityHubCleanup)
-    task.wait(0.1) 
-end
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
-local CoreGui = game:GetService("CoreGui")
-
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-
-local MyConnections = {}
-local function BindConn(conn)
-    table.insert(MyConnections, conn)
-    return conn
-end
-
-local ClickDeletedObjects = {} 
-local MapDeletedObjects = {} 
-local SpawnedPoles = {}
-local tracerLines = {}
-local origAmbient, origOutdoorAmbient, origShadows
-
-local hardLockedPlayer = nil 
-local AimingPlayers = {} 
-
-local function isPlayerCharacter(part)
-    if not part then return false end
-    local model = part:FindFirstAncestorOfClass("Model")
-    if model and Players:GetPlayerFromCharacter(model) then return true end
-    if LocalPlayer.Character and part:IsDescendantOf(LocalPlayer.Character) then return true end
-    return false
-end
-
--- [ฟังก์ชันล้างบาง]
-_G.UtilityHubCleanup = function()
-    for _, conn in ipairs(MyConnections) do
-        if conn then pcall(function() conn:Disconnect() end) end
-    end
-    for obj, data in pairs(MapDeletedObjects) do
-        if obj then pcall(function() obj.Transparency = data.origTransparency; obj.CanCollide = data.origCanCollide; if data.origCanQuery ~= nil then obj.CanQuery = data.origCanQuery end end) end
-    end
-    for _, data in ipairs(ClickDeletedObjects) do
-        if data.obj then pcall(function() data.obj.Transparency = data.origTransparency; data.obj.CanCollide = data.origCanCollide; if data.origCanQuery ~= nil then data.obj.CanQuery = data.origCanQuery end end) end
-    end
-    for _, pole in ipairs(SpawnedPoles) do
-        if pole then pcall(function() pole:Destroy() end) end
-    end
-    pcall(function()
-        local Lighting = game:GetService("Lighting")
-        if origAmbient then Lighting.Ambient = origAmbient end
-        if origOutdoorAmbient then Lighting.OutdoorAmbient = origOutdoorAmbient end
-        if origShadows ~= nil then Lighting.GlobalShadows = origShadows end
-    end)
-    pcall(function()
-        for _, p in pairs(game:GetService("Players"):GetPlayers()) do
-            if p.Character then
-                local hl = p.Character:FindFirstChild("PrankESP"); if hl then hl:Destroy() end
-                local hpBar = p.Character:FindFirstChild("HealthESP"); if hpBar then hpBar:Destroy() end
-                local bg = p.Character:FindFirstChild("WeaponESP_UI"); if bg then bg:Destroy() end
-            end
-        end
-    end)
-    pcall(function()
-        local char = game:GetService("Players").LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = 16 end
-    end)
-    
-    if _G.UtilityUI then pcall(function() _G.UtilityUI:Destroy() end); _G.UtilityUI = nil end
-    if _G.UtilityWarningUI then pcall(function() _G.UtilityWarningUI:Destroy() end); _G.UtilityWarningUI = nil end
-    if _G.UtilityCorpseFolder then pcall(function() _G.UtilityCorpseFolder:Destroy() end); _G.UtilityCorpseFolder = nil end
-    if _G.UtilityFOVUI then pcall(function() _G.UtilityFOVUI:Destroy() end); _G.UtilityFOVUI = nil end
-end
-
--- =======================================================
--- [สร้าง UI และหน้าต่างเมนู]
--- =======================================================
-local function getSafeParent()
+-- Safe GUI Parent
+local function getSafeGuiParent()
     if gethui then return gethui() end
-    if pcall(function() return CoreGui.Name end) then return CoreGui end
-    return LocalPlayer:WaitForChild("PlayerGui")
+    local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    if success and coreGui then return coreGui end
+    return player:WaitForChild("PlayerGui", 5) or player.PlayerGui
 end
 
-local SafeGuiParent = getSafeParent()
+local parentGui = getSafeGuiParent()
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "UtilityHubUI_" .. tostring(math.random(100000, 999999))
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true 
-ScreenGui.Parent = SafeGuiParent
-_G.UtilityUI = ScreenGui
-
-local function ProtectMyUI(gui)
-    if syn and syn.protect_gui then pcall(syn.protect_gui, gui)
-    elseif protectgui then pcall(protectgui, gui) end
+-- Cleanup Old Instances
+if parentGui:FindFirstChild("ApexEggHubShield") then
+    parentGui.ApexEggHubShield:Destroy()
 end
-ProtectMyUI(ScreenGui)
+if workspace:FindFirstChild("ApexESP_Folder") then
+    workspace.ApexESP_Folder:Destroy()
+end
 
-local Colors = {
-    Bg = Color3.fromRGB(20, 20, 25),
-    Panel = Color3.fromRGB(35, 35, 45),
-    ButtonESP = Color3.fromRGB(234, 179, 8),
-    Text = Color3.fromRGB(240, 240, 240),
-    Status = Color3.fromRGB(150, 150, 160),
-    Green = Color3.fromRGB(74, 222, 128),
-    ButtonAim = Color3.fromRGB(225, 29, 72),
-    FOVColor = Color3.fromRGB(236, 72, 153),
-    Warning = Color3.fromRGB(239, 68, 68),
-    Corpse = Color3.fromRGB(139, 92, 246),
-    Pred = Color3.fromRGB(14, 165, 233)
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ApexESP_Folder"
+espFolder.Parent = workspace
+
+-- -------------------------------------------------------------
+-- 1. Anti-Detection & Remote Hooking
+-- -------------------------------------------------------------
+local blockedRemotesCount = 0
+local blockedRemoteNames = {
+    ["Ban"] = true, ["Kick"] = true, ["GameWarning"] = true,
+    ["Error"] = true, ["PlayerActivity"] = true, ["Teleporting"] = true,
+    ["ServerMessage"] = true
 }
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 230, 0, 950) -- ขยายขนาดรองรับปุ่มยิงดักหน้า
-Main.Position = UDim2.new(0.5, -115, 0.1, 0)
-Main.BackgroundColor3 = Colors.Bg
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Parent = ScreenGui
-local Corner = Instance.new("UICorner", Main); Corner.CornerRadius = UDim.new(0, 8)
-
-local OpenBtn = Instance.new("TextButton")
-OpenBtn.Size = UDim2.new(0, 45, 0, 45)
-OpenBtn.Position = UDim2.new(0, 15, 0, 15)
-OpenBtn.BackgroundColor3 = Colors.Panel
-OpenBtn.Text = "🛠️"
-OpenBtn.TextSize = 20
-OpenBtn.Visible = false
-OpenBtn.Parent = ScreenGui
-local CornerO = Instance.new("UICorner", OpenBtn); CornerO.CornerRadius = UDim.new(0, 8)
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 2)
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "➖"
-CloseBtn.TextColor3 = Colors.Text
-CloseBtn.TextSize = 14
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Parent = Main
-
-CloseBtn.Activated:Connect(function() Main.Visible = false; OpenBtn.Visible = true end)
-OpenBtn.Activated:Connect(function() Main.Visible = true; OpenBtn.Visible = false end)
-
-local dragging, dragInput, dragStart, startPos
-Main.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true; dragStart = input.Position; startPos = Main.Position
-        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+pcall(function()
+    if hookmetamethod then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if (method == "FireServer" or method == "InvokeServer") and self then
+                if blockedRemoteNames[self.Name] then
+                    blockedRemotesCount = blockedRemotesCount + 1
+                    return nil
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
     end
 end)
-BindConn(UserInputService.InputChanged:Connect(function(input)
+
+-- -------------------------------------------------------------
+-- 2. Anti-AFK Engine
+-- -------------------------------------------------------------
+local antiAfkEnabled = true
+player.Idled:Connect(function()
+    if antiAfkEnabled then
+        virtualUser:CaptureController()
+        virtualUser:ClickButton2(Vector2.new(0, 0))
+    end
+end)
+
+-- Game Remotes & Services
+local gameRemotes = rs:WaitForChild("Remotes", 4) and rs.Remotes:FindFirstChild("Game")
+local plotRemotes = gameRemotes and gameRemotes:FindFirstChild("Plot")
+local eggPickupRemote = gameRemotes and gameRemotes:FindFirstChild("EggPickup")
+local tpPlotRemote = (plotRemotes and plotRemotes:FindFirstChild("TeleportToPlot")) or (gameRemotes and gameRemotes:FindFirstChild("TeleportToPlot"))
+local eggPlacedRemote = gameRemotes and gameRemotes:FindFirstChild("EggPlaced")
+local basketDropRemote = gameRemotes and gameRemotes:FindFirstChild("BasketDrop")
+local eggCycleService = rs:FindFirstChild("GameServices") and rs.GameServices:FindFirstChild("EggCycle")
+
+local eggList = {
+    "Cherub Egg", "Blackhole Egg", "Galaxy Egg", "Aurora Egg", 
+    "Soul Egg", "Sinister Egg", "Flaming Egg", "Dominus Egg", 
+    "Asteroid Egg", "Skull Egg", "Crystal Egg", "Diamond Egg", 
+    "Golden Egg", "Glass Egg", "Ice Egg", "Slime Egg", 
+    "Flower Egg", "Mushroom Egg", "Leaf Egg", "Stone Egg", 
+    "Easter Egg", "Cracked Egg", "Brown Egg", "White Egg"
+}
+
+-- อัพเดทตัวแปรระบบ
+local currentTargetEgg = nil 
+local selectedEggs = {} 
+local maxSelection = 50
+local eggButtons = {}
+local originalBtnColors = {}
+
+local isFarming = false
+local isMinimized = false
+local homeCFrame = nil
+local activeHighlights = {}
+local activeBillboards = {}
+local lastRemoteCall = 0
+local useFlashTP = false
+
+-- -------------------------------------------------------------
+-- Auto Server Hop Logic
+-- -------------------------------------------------------------
+local visitedServers = {}
+local function hopLowPlayerServer()
+    local placeId = game.PlaceId
+    local currentJobId = game.JobId
+    local reqUrl = string.format("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100", tostring(placeId))
+    
+    local success, response = pcall(function()
+        if request then return request({Url = reqUrl, Method = "GET"})
+        elseif http_request then return http_request({Url = reqUrl, Method = "GET"})
+        elseif syn and syn.request then return syn.request({Url = reqUrl, Method = "GET"}) end
+    end)
+    
+    if success and response and response.Body then
+        local data = httpService:JSONDecode(response.Body)
+        if data and data.data then
+            local possibleServers = {}
+            for _, srv in ipairs(data.data) do
+                if srv.playing == 1 and srv.id ~= currentJobId and not visitedServers[srv.id] then
+                    table.insert(possibleServers, srv.id)
+                end
+            end
+            if #possibleServers > 0 then
+                local targetServerId = possibleServers[math.random(1, #possibleServers)]
+                visitedServers[targetServerId] = true
+                teleportService:TeleportToPlaceInstance(placeId, targetServerId, player)
+                return true
+            end
+        end
+    end
+    teleportService:Teleport(placeId, player)
+end
+
+-- -------------------------------------------------------------
+-- FPS Boost (Potato Mode) Logic
+-- -------------------------------------------------------------
+local function enablePotatoMode()
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    lighting.FogEnd = 9e9
+    lighting.Brightness = 1
+    
+    for _, v in pairs(lighting:GetChildren()) do
+        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("Atmosphere") then
+            v.Enabled = false
+        end
+    end
+
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+            v.CastShadow = false
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v:Destroy()
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
+            v.Enabled = false
+        elseif v:IsA("Model") then
+            local name = string.lower(v.Name)
+            if name:find("tree") or name:find("bush") or name:find("grass") or name:find("plant") or name:find("leaf") then
+                v:Destroy()
+            end
+        end
+    end
+    
+    pcall(function()
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    end)
+end
+
+-- -------------------------------------------------------------
+-- RESPONSIVE UI CONSTRUCTION
+-- -------------------------------------------------------------
+local sg = Instance.new("ScreenGui")
+sg.Name = "ApexEggHubShield"
+sg.ResetOnSpawn = false
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+sg.Parent = parentGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 520, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -260, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(13, 15, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Active = true
+mainFrame.Parent = sg
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = Color3.fromRGB(38, 44, 62)
+mainStroke.Thickness = 1.4
+
+-- Dragging System
+local dragging, dragInput, dragStart, startPos
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 36)
+header.BackgroundColor3 = Color3.fromRGB(18, 21, 30)
+header.BorderSizePixel = 0
+header.Active = true
+header.Parent = mainFrame
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+header.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+
+uis.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-end))
+end)
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -30, 0, 35)
-Title.BackgroundTransparency = 1
-Title.Text = " 🛠️ Utility Hub"
-Title.TextColor3 = Colors.ButtonESP
-Title.TextSize = 13
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Main
-local PadT = Instance.new("UIPadding", Title); PadT.PaddingLeft = UDim.new(0, 12)
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -70, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ <font color=\"#60A5FA\"><b>APEX</b></font> INSPECTOR <font color=\"#10B981\">PRO</font>"
+titleLabel.RichText = true
+titleLabel.TextColor3 = Color3.fromRGB(240, 243, 248)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = header
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -24, 0, 20)
-Status.Position = UDim2.new(0, 12, 0, 40)
-Status.BackgroundTransparency = 1
-Status.Text = "ระบบพร้อมใช้งาน!"
-Status.TextColor3 = Colors.Green
-Status.TextSize = 11
-Status.Font = Enum.Font.Gotham
-Status.Parent = Main
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 24, 0, 24)
+minBtn.Position = UDim2.new(1, -60, 0.5, -12)
+minBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+minBtn.Text = "—"
+minBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+minBtn.Font = Enum.Font.GothamBold
+minBtn.Parent = header
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 5)
 
--- =======================================================
--- [ระบบจัดการตำแหน่งและปุ่มลัด]
--- =======================================================
-local currentY = 70
-local function getY()
-    local y = currentY
-    currentY = currentY + 40
-    return y
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -30, 0.5, -12)
+closeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = header
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 5)
+
+local tabNav = Instance.new("Frame")
+tabNav.Size = UDim2.new(1, -16, 0, 30)
+tabNav.Position = UDim2.new(0, 8, 0, 42)
+tabNav.BackgroundColor3 = Color3.fromRGB(19, 23, 33)
+tabNav.BorderSizePixel = 0
+tabNav.Parent = mainFrame
+Instance.new("UICorner", tabNav).CornerRadius = UDim.new(0, 6)
+
+local navLayout = Instance.new("UIListLayout", tabNav)
+navLayout.FillDirection = Enum.FillDirection.Horizontal
+navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+navLayout.Padding = UDim.new(0, 6)
+
+local tabs = {}
+local tabButtons = {}
+
+local function createTabButton(id, titleText)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.31, 0, 0, 24)
+    btn.BackgroundColor3 = (id == "Farm") and Color3.fromRGB(59, 130, 246) or Color3.fromRGB(24, 29, 41)
+    btn.Text = titleText
+    btn.TextColor3 = (id == "Farm") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 160, 185)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 10
+    btn.Parent = tabNav
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+    tabButtons[id] = btn
+    return btn
 end
 
-local Bindings = {
-    Aim = Enum.KeyCode.E,
-    Lock = Enum.KeyCode.KeypadTwo,
-    Pole = Enum.KeyCode.Z,
-    Del = Enum.KeyCode.G
-}
+createTabButton("Farm", "🎯 Sniper")
+createTabButton("Security", "🛡️ Shield & Opt")
+createTabButton("Weather", "⏱️ Cycle")
 
-local function createHotkeyRow(yPos, text, bindKeyName, bgColor)
-    local btn = Instance.new("TextButton", Main)
-    btn.Size = UDim2.new(1, -56, 0, 35)
-    btn.Position = UDim2.new(0, 12, 0, yPos)
-    btn.BackgroundColor3 = bgColor
-    btn.Text = " " .. text
-    btn.TextColor3 = Colors.Text
-    btn.TextSize = 12
-    btn.TextXAlignment = Enum.TextXAlignment.Left
+local pageContainer = Instance.new("Frame")
+pageContainer.Size = UDim2.new(1, -16, 1, -80)
+pageContainer.Position = UDim2.new(0, 8, 0, 76)
+pageContainer.BackgroundTransparency = 1
+pageContainer.Parent = mainFrame
+
+-- TAB 1: SNIPER
+local farmPage = Instance.new("Frame")
+farmPage.Size = UDim2.new(1, 0, 1, 0)
+farmPage.BackgroundTransparency = 1
+farmPage.Parent = pageContainer
+tabs["Farm"] = farmPage
+
+local leftPanel = Instance.new("Frame")
+leftPanel.Size = UDim2.new(0.44, 0, 1, -4)
+leftPanel.BackgroundColor3 = Color3.fromRGB(16, 19, 28)
+leftPanel.Parent = farmPage
+Instance.new("UICorner", leftPanel).CornerRadius = UDim.new(0, 8)
+
+local eggScroll = Instance.new("ScrollingFrame")
+eggScroll.Size = UDim2.new(1, -6, 1, -6)
+eggScroll.Position = UDim2.new(0, 3, 0, 3)
+eggScroll.BackgroundTransparency = 1
+eggScroll.BorderSizePixel = 0
+eggScroll.ScrollBarThickness = 3
+eggScroll.ScrollBarImageColor3 = Color3.fromRGB(59, 130, 246)
+eggScroll.Parent = leftPanel
+local eggListLayout = Instance.new("UIListLayout", eggScroll)
+eggListLayout.Padding = UDim.new(0, 3)
+
+eggListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    eggScroll.CanvasSize = UDim2.new(0, 0, 0, eggListLayout.AbsoluteContentSize.Y + 6)
+end)
+
+local rightPanel = Instance.new("Frame")
+rightPanel.Size = UDim2.new(0.54, 0, 1, -4)
+rightPanel.Position = UDim2.new(0.46, 0, 0, 0)
+rightPanel.BackgroundTransparency = 1
+rightPanel.Parent = farmPage
+
+local statusCard = Instance.new("Frame")
+statusCard.Size = UDim2.new(1, 0, 0, 42)
+statusCard.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+statusCard.Parent = rightPanel
+Instance.new("UICorner", statusCard).CornerRadius = UDim.new(0, 6)
+Instance.new("UIStroke", statusCard).Color = Color3.fromRGB(36, 44, 63)
+
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Size = UDim2.new(1, -12, 0, 16)
+targetLabel.Position = UDim2.new(0, 6, 0, 3)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Text = "🎯 TARGET: <font color=\"#F59E0B\">None Selected</font>"
+targetLabel.RichText = true
+targetLabel.TextColor3 = Color3.fromRGB(230, 235, 245)
+targetLabel.Font = Enum.Font.GothamBold
+targetLabel.TextSize = 10
+targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+targetLabel.Parent = statusCard
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -12, 0, 18)
+infoLabel.Position = UDim2.new(0, 6, 0, 20)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "Status: Select an egg on the left..."
+infoLabel.RichText = true
+infoLabel.TextColor3 = Color3.fromRGB(140, 150, 175)
+infoLabel.Font = Enum.Font.Gotham
+infoLabel.TextSize = 9
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.Parent = statusCard
+
+local heavyCard = Instance.new("Frame")
+heavyCard.Size = UDim2.new(1, 0, 0, 42)
+heavyCard.Position = UDim2.new(0, 0, 0, 46)
+heavyCard.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+heavyCard.Parent = rightPanel
+Instance.new("UICorner", heavyCard).CornerRadius = UDim.new(0, 6)
+local heavyStroke = Instance.new("UIStroke", heavyCard)
+heavyStroke.Color = Color3.fromRGB(234, 179, 8)
+heavyStroke.Thickness = 1.2
+
+local heavyTitle = Instance.new("TextLabel")
+heavyTitle.Size = UDim2.new(1, -12, 0, 16)
+heavyTitle.Position = UDim2.new(0, 6, 0, 3)
+heavyTitle.BackgroundTransparency = 1
+heavyTitle.Text = "👑 HEAVIEST: <font color=\"#EAB308\">Scanning...</font>"
+heavyTitle.RichText = true
+heavyTitle.TextColor3 = Color3.fromRGB(255, 220, 50)
+heavyTitle.Font = Enum.Font.GothamBold
+heavyTitle.TextSize = 10
+heavyTitle.TextXAlignment = Enum.TextXAlignment.Left
+heavyTitle.Parent = heavyCard
+
+local heavyInfo = Instance.new("TextLabel")
+heavyInfo.Size = UDim2.new(1, -12, 0, 22)
+heavyInfo.Position = UDim2.new(0, 6, 0, 20)
+heavyInfo.BackgroundTransparency = 1
+heavyInfo.Text = "Weight: - | Dist: -"
+heavyInfo.RichText = true
+heavyInfo.TextColor3 = Color3.fromRGB(140, 150, 175)
+heavyInfo.Font = Enum.Font.Gotham
+heavyInfo.TextSize = 9
+heavyInfo.TextXAlignment = Enum.TextXAlignment.Left
+heavyInfo.Parent = heavyCard
+
+local btnHolder = Instance.new("Frame")
+btnHolder.Size = UDim2.new(1, 0, 1, -94)
+btnHolder.Position = UDim2.new(0, 0, 0, 94)
+btnHolder.BackgroundTransparency = 1
+btnHolder.Parent = rightPanel
+
+local btnListLayout = Instance.new("UIListLayout", btnHolder)
+btnListLayout.FillDirection = Enum.FillDirection.Vertical
+btnListLayout.Padding = UDim.new(0, 6)
+
+local function createBtnRow()
+    local r = Instance.new("Frame")
+    r.Size = UDim2.new(1, 0, 0, 28)
+    r.BackgroundTransparency = 1
+    r.Parent = btnHolder
+    return r
+end
+
+local function createActionBtn(text, color, parent, xPos, widthStr)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(widthStr, 0, 1, 0)
+    btn.Position = UDim2.new(xPos, 0, 0, 0)
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.TextSize = 10
+    btn.AutoButtonColor = true
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+    btn.Parent = parent
+    return btn
+end
 
-    local keyBtn = Instance.new("TextButton", Main)
-    keyBtn.Size = UDim2.new(0, 40, 0, 35)
-    keyBtn.Position = UDim2.new(1, -52, 0, yPos)
-    keyBtn.BackgroundColor3 = Colors.Panel
-    keyBtn.Text = "[" .. Bindings[bindKeyName].Name .. "]"
-    keyBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    keyBtn.TextSize = 11
-    keyBtn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 6)
+local row1 = createBtnRow()
+local tpBtn = createActionBtn("🚀 TP Target", Color3.fromRGB(59, 130, 246), row1, 0, 0.48)
+local tpHvyBtn = createActionBtn("👑 TP Heaviest", Color3.fromRGB(217, 119, 6), row1, 0.52, 0.48)
 
-    local isBinding = false
-    keyBtn.Activated:Connect(function()
-        isBinding = true
-        keyBtn.Text = "..."
-        keyBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
-        keyBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+local row2 = createBtnRow()
+local homeBtn = createActionBtn("🏠 Set Base", Color3.fromRGB(30, 36, 52), row2, 0, 0.48)
+local modeBtn = createActionBtn("🐢 Safe TP: ON", Color3.fromRGB(59, 130, 246), row2, 0.52, 0.48)
+
+local row3 = createBtnRow()
+row3.Size = UDim2.new(1, 0, 0, 32)
+local farmBtn = createActionBtn("⚡ AUTO FARM", Color3.fromRGB(16, 185, 129), row3, 0, 1)
+
+-- TAB 2 & 3 Setup (Security & Weather)
+local secPage = Instance.new("Frame")
+secPage.Size = UDim2.new(1, 0, 1, 0)
+secPage.BackgroundTransparency = 1
+secPage.Visible = false
+secPage.Parent = pageContainer
+tabs["Security"] = secPage
+
+local secLeft = Instance.new("Frame")
+secLeft.Size = UDim2.new(0.60, 0, 1, -4)
+secLeft.BackgroundColor3 = Color3.fromRGB(18, 22, 31)
+secLeft.Parent = secPage
+Instance.new("UICorner", secLeft).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", secLeft).Color = Color3.fromRGB(36, 44, 63)
+
+local secTitle = Instance.new("TextLabel")
+secTitle.Size = UDim2.new(1, -16, 0, 20)
+secTitle.Position = UDim2.new(0, 8, 0, 6)
+secTitle.BackgroundTransparency = 1
+secTitle.Text = "🛡️ SECURITY LOGS"
+secTitle.TextColor3 = Color3.fromRGB(16, 185, 129)
+secTitle.Font = Enum.Font.GothamBold
+secTitle.TextSize = 11
+secTitle.TextXAlignment = Enum.TextXAlignment.Left
+secTitle.Parent = secLeft
+
+local secLogs = Instance.new("TextLabel")
+secLogs.Size = UDim2.new(1, -16, 1, -30)
+secLogs.Position = UDim2.new(0, 8, 0, 26)
+secLogs.BackgroundTransparency = 1
+secLogs.Text = string.format("• Anti-AFK (20m Timeout): ACTIVE\n• Ban/Kick Remotes: DROPPED\n• Total Intercepted Traps: %d", blockedRemotesCount)
+secLogs.TextColor3 = Color3.fromRGB(190, 200, 225)
+secLogs.Font = Enum.Font.Gotham
+secLogs.TextSize = 10
+secLogs.TextXAlignment = Enum.TextXAlignment.Left
+secLogs.TextYAlignment = Enum.TextYAlignment.Top
+secLogs.Parent = secLeft
+
+local secRight = Instance.new("Frame")
+secRight.Size = UDim2.new(0.38, 0, 1, -4)
+secRight.Position = UDim2.new(0.62, 0, 0, 0)
+secRight.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+secRight.Parent = secPage
+Instance.new("UICorner", secRight).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", secRight).Color = Color3.fromRGB(36, 44, 63)
+
+local hopTitle = Instance.new("TextLabel")
+hopTitle.Size = UDim2.new(1, -8, 0, 18)
+hopTitle.Position = UDim2.new(0, 4, 0, 6)
+hopTitle.BackgroundTransparency = 1
+hopTitle.Text = "🌐 CONTROL"
+hopTitle.TextColor3 = Color3.fromRGB(96, 165, 250)
+hopTitle.Font = Enum.Font.GothamBold
+hopTitle.TextSize = 10
+hopTitle.Parent = secRight
+
+local hopBtn = Instance.new("TextButton")
+hopBtn.Size = UDim2.new(1, -16, 0, 32)
+hopBtn.Position = UDim2.new(0, 8, 0, 26)
+hopBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+hopBtn.Text = "🚀 Hop Server\n(1 Player)"
+hopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+hopBtn.Font = Enum.Font.GothamBold
+hopBtn.TextSize = 9
+hopBtn.AutoButtonColor = true
+hopBtn.Parent = secRight
+Instance.new("UICorner", hopBtn).CornerRadius = UDim.new(0, 6)
+
+hopBtn.Activated:Connect(function()
+    hopBtn.Text = "🔄 Finding..."
+    hopLowPlayerServer()
+end)
+
+local fpsBtn = Instance.new("TextButton")
+fpsBtn.Size = UDim2.new(1, -16, 0, 32)
+fpsBtn.Position = UDim2.new(0, 8, 0, 64)
+fpsBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+fpsBtn.Text = "🥔 Boost FPS\n(Clear Trees/Gfx)"
+fpsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fpsBtn.Font = Enum.Font.GothamBold
+fpsBtn.TextSize = 9
+fpsBtn.AutoButtonColor = true
+fpsBtn.Parent = secRight
+Instance.new("UICorner", fpsBtn).CornerRadius = UDim.new(0, 6)
+
+fpsBtn.Activated:Connect(function()
+    fpsBtn.Text = "✅ Boosted!"
+    fpsBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    enablePotatoMode()
+end)
+
+local weatherPage = Instance.new("Frame")
+weatherPage.Size = UDim2.new(1, 0, 1, 0)
+weatherPage.BackgroundTransparency = 1
+weatherPage.Visible = false
+weatherPage.Parent = pageContainer
+tabs["Weather"] = weatherPage
+
+local wLeft = Instance.new("Frame")
+wLeft.Size = UDim2.new(0.48, 0, 1, -4)
+wLeft.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+wLeft.Parent = weatherPage
+Instance.new("UICorner", wLeft).CornerRadius = UDim.new(0, 8)
+
+local cycleTitle = Instance.new("TextLabel")
+cycleTitle.Size = UDim2.new(1, 0, 0, 20)
+cycleTitle.Position = UDim2.new(0, 0, 0, 12)
+cycleTitle.BackgroundTransparency = 1
+cycleTitle.Text = "🔄 CYCLE TIMER"
+cycleTitle.TextColor3 = Color3.fromRGB(96, 165, 250)
+cycleTitle.Font = Enum.Font.GothamBold
+cycleTitle.TextSize = 12
+cycleTitle.Parent = wLeft
+
+local countdownLabel = Instance.new("TextLabel")
+countdownLabel.Size = UDim2.new(1, 0, 0, 45)
+countdownLabel.Position = UDim2.new(0, 0, 0, 38)
+countdownLabel.BackgroundTransparency = 1
+countdownLabel.Text = "07:59"
+countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+countdownLabel.Font = Enum.Font.GothamBold
+countdownLabel.TextSize = 32
+countdownLabel.Parent = wLeft
+
+local wRight = Instance.new("Frame")
+wRight.Size = UDim2.new(0.50, 0, 1, -4)
+wRight.Position = UDim2.new(0.50, 0, 0, 0)
+wRight.BackgroundColor3 = Color3.fromRGB(18, 22, 31)
+wRight.Parent = weatherPage
+Instance.new("UICorner", wRight).CornerRadius = UDim.new(0, 8)
+
+local weatherHeader = Instance.new("TextLabel")
+weatherHeader.Size = UDim2.new(1, -16, 0, 22)
+weatherHeader.Position = UDim2.new(0, 10, 0, 8)
+weatherHeader.BackgroundTransparency = 1
+weatherHeader.Text = "🌤️ WEATHER"
+weatherHeader.TextColor3 = Color3.fromRGB(245, 158, 11)
+weatherHeader.Font = Enum.Font.GothamBold
+weatherHeader.TextSize = 11
+weatherHeader.TextXAlignment = Enum.TextXAlignment.Left
+weatherHeader.Parent = wRight
+
+local function switchTab(tabId)
+    for id, page in pairs(tabs) do page.Visible = (id == tabId) end
+    for id, btn in pairs(tabButtons) do
+        if id == tabId then
+            btn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(24, 29, 41)
+            btn.TextColor3 = Color3.fromRGB(150, 160, 185)
+        end
+    end
+end
+for id, btn in pairs(tabButtons) do
+    btn.Activated:Connect(function() switchTab(id) end)
+end
+
+-- Resize Logic
+local resizeHandle = Instance.new("Frame")
+resizeHandle.Size = UDim2.new(0, 18, 0, 18)
+resizeHandle.Position = UDim2.new(1, -18, 1, -18)
+resizeHandle.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+resizeHandle.BackgroundTransparency = 0.5
+resizeHandle.BorderSizePixel = 0
+resizeHandle.ZIndex = 10
+resizeHandle.Parent = mainFrame
+Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 6)
+
+local resizeIcon = Instance.new("TextLabel")
+resizeIcon.Size = UDim2.new(1, 0, 1, 0)
+resizeIcon.BackgroundTransparency = 1
+resizeIcon.Text = "◢"
+resizeIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+resizeIcon.Font = Enum.Font.GothamBold
+resizeIcon.TextSize = 12
+resizeIcon.ZIndex = 11
+resizeIcon.Parent = resizeHandle
+
+local resizing = false
+local resizeStartPos, resizeStartSize
+
+resizeHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = true
+        resizeStartPos = input.Position
+        resizeStartSize = mainFrame.AbsoluteSize
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then resizing = false end
+        end)
+    end
+end)
+
+uis.InputChanged:Connect(function(input)
+    if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - resizeStartPos
+        local newWidth = math.clamp(resizeStartSize.X + delta.X, 420, 800)
+        local newHeight = math.clamp(resizeStartSize.Y + delta.Y, 240, 450)
+        mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+        
+        local btnHeight = math.clamp((newHeight - 210) / 3, 24, 40)
+        row1.Size = UDim2.new(1, 0, 0, btnHeight)
+        row2.Size = UDim2.new(1, 0, 0, btnHeight)
+        row3.Size = UDim2.new(1, 0, 0, btnHeight + 4)
+    end
+end)
+
+-- -------------------------------------------------------------
+-- Inspector & Parse
+-- -------------------------------------------------------------
+local function findAutoPlotCFrame()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local pn = player.Name
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Text:find(pn) then
+            local p = obj:FindFirstAncestorWhichIsA("Model")
+            local s = p and (p:FindFirstChild("Spawn") or p:FindFirstChild("SpawnLocation"))
+            if s then return s.CFrame + Vector3.new(0, 3, 0) end
+        end
+    end
+    return hrp and hrp.CFrame or nil
+end
+
+local function getRarityInfo(eggName)
+    local idx = 99
+    for i, name in ipairs(eggList) do
+        if string.lower(name) == string.lower(eggName) then idx = i break end
+    end
+    if idx <= 4 then return Color3.fromRGB(192, 132, 252), "Ethereal/Godly"
+    elseif idx <= 10 then return Color3.fromRGB(251, 146, 60), "Mythic"
+    elseif idx <= 16 then return Color3.fromRGB(56, 189, 248), "Legendary"
+    else return Color3.fromRGB(156, 163, 175), "Common" end
+end
+
+local function isWildEgg(item)
+    local curr = item.Parent
+    while curr and curr ~= workspace do
+        local n = string.lower(curr.Name)
+        if n:find("plot") or n:find("nest") or n:find("base") or curr:FindFirstChild("Humanoid") then return false end
+        curr = curr.Parent
+    end
+    return true
+end
+
+local function parseEggWeight(egg)
+    local maxFoundWeight = 0
+    local attrs = egg:GetAttributes()
+    for k, v in pairs(attrs) do
+        local lk = string.lower(k)
+        if (lk == "weight" or lk == "multiplier" or lk == "mass" or lk == "kg") and type(v) == "number" then return v end
+    end
+
+    for _, v in pairs(egg:GetDescendants()) do
+        if v:IsA("NumberValue") or v:IsA("IntValue") then
+            local n = string.lower(v.Name)
+            if n == "weight" or n == "multiplier" or n == "mass" or n == "kg" then
+                if v.Value > maxFoundWeight then maxFoundWeight = v.Value end
+            end
+        elseif v:IsA("TextLabel") and v.Visible then
+            local txt = string.lower(v.Text)
+            local numStr = string.match(txt, "([%d%.]+)%s*kg")
+            if not numStr then
+                local lbsStr = string.match(txt, "([%d%.]+)%s*lbs")
+                if lbsStr then
+                    local lbsNum = tonumber(lbsStr)
+                    if lbsNum then numStr = tostring(lbsNum * 0.453592) end
+                end
+            end
+            if numStr then
+                local num = tonumber(numStr)
+                if num and num > maxFoundWeight then maxFoundWeight = num end
+            end
+        end
+    end
+    if maxFoundWeight > 0 then return maxFoundWeight end
+
+    local part = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+    if part then
+        local vol = part.Size.X * part.Size.Y * part.Size.Z
+        return math.floor(vol * 5) / 10
+    end
+    return 0
+end
+
+local function getFormattedWeight(egg)
+    local w = parseEggWeight(egg)
+    if w > 0 then return string.format("%.1f kg", w) else return "?? kg (Hidden)" end
+end
+
+local function clearESP()
+    espFolder:ClearAllChildren()
+    for _, hl in pairs(activeHighlights) do if hl then hl:Destroy() end end
+    activeHighlights = {}
+    activeBillboards = {}
+end
+
+local function createDetailedESP(egg, part, isHeaviest)
+    local themeColor, tierName = getRarityInfo(egg.Name)
+    if isHeaviest then themeColor = Color3.fromRGB(234, 179, 8) end
+    
+    local hl = Instance.new("Highlight")
+    hl.Adornee = egg
+    hl.FillColor = themeColor
+    hl.OutlineColor = isHeaviest and Color3.fromRGB(255, 230, 0) or Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = 0.4
+    hl.OutlineTransparency = 0.1
+    hl.Parent = espFolder
+    table.insert(activeHighlights, hl)
+    
+    local bg = Instance.new("BillboardGui")
+    bg.Adornee = part
+    bg.Size = UDim2.new(0, 160, 0, 56)
+    bg.AlwaysOnTop = true
+    bg.StudsOffset = Vector3.new(0, 2.8, 0)
+    bg.Parent = espFolder
+    
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 1, 0)
+    card.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+    card.BackgroundTransparency = 0.12
+    card.BorderSizePixel = 0
+    card.Parent = bg
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", card)
+    stroke.Color = themeColor
+    stroke.Thickness = isHeaviest and 1.8 or 1.2
+    
+    local titleText = (isHeaviest and "👑 [HEAVIEST] " or "✨ ") .. egg.Name
+    local nameLbl = Instance.new("TextLabel")
+    nameLbl.Size = UDim2.new(1, -8, 0, 18)
+    nameLbl.Position = UDim2.new(0, 4, 0, 2)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.TextColor3 = isHeaviest and Color3.fromRGB(255, 220, 50) or Color3.fromRGB(255, 255, 255)
+    nameLbl.Text = titleText
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 10
+    nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    nameLbl.Parent = card
+    
+    local tierLbl = Instance.new("TextLabel")
+    tierLbl.Size = UDim2.new(1, -8, 0, 12)
+    tierLbl.Position = UDim2.new(0, 4, 0, 18)
+    tierLbl.BackgroundTransparency = 1
+    tierLbl.TextColor3 = themeColor
+    tierLbl.Text = "Tier: " .. tierName
+    tierLbl.Font = Enum.Font.GothamBold
+    tierLbl.TextSize = 8
+    tierLbl.TextXAlignment = Enum.TextXAlignment.Left
+    tierLbl.Parent = card
+    
+    local tagHolder = Instance.new("Frame")
+    tagHolder.Size = UDim2.new(1, -8, 0, 18)
+    tagHolder.Position = UDim2.new(0, 4, 0, 32)
+    tagHolder.BackgroundTransparency = 1
+    tagHolder.Parent = card
+    local hLayout = Instance.new("UIListLayout", tagHolder)
+    hLayout.FillDirection = Enum.FillDirection.Horizontal
+    hLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    hLayout.Padding = UDim.new(0, 4)
+    
+    local wTag = Instance.new("TextLabel")
+    wTag.Size = UDim2.new(0.48, 0, 1, 0)
+    wTag.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
+    wTag.TextColor3 = Color3.fromRGB(255, 215, 0)
+    wTag.Font = Enum.Font.GothamBold
+    wTag.TextSize = 8
+    wTag.Text = "⚖️ " .. getFormattedWeight(egg)
+    wTag.Parent = tagHolder
+    Instance.new("UICorner", wTag).CornerRadius = UDim.new(0, 4)
+    
+    local dTag = Instance.new("TextLabel")
+    dTag.Size = UDim2.new(0.48, 0, 1, 0)
+    dTag.BackgroundColor3 = Color3.fromRGB(20, 26, 38)
+    dTag.TextColor3 = Color3.fromRGB(0, 229, 255)
+    dTag.Font = Enum.Font.GothamBold
+    dTag.TextSize = 8
+    dTag.Text = "📍 ..."
+    dTag.Parent = tagHolder
+    Instance.new("UICorner", dTag).CornerRadius = UDim.new(0, 4)
+    
+    table.insert(activeBillboards, {Label = dTag, Part = part})
+end
+
+-- ==========================================
+-- 1. ฟังก์ชันค้นหาสำหรับโชว์ ESP / ข้อมูล (อิงตาม currentTargetEgg)
+-- ==========================================
+local function scanAndInspect()
+    local selectedMatches = {}
+    local heaviestEgg, maxW = nil, -1
+    
+    for _, item in pairs(workspace:GetDescendants()) do
+        if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) then
+            local isKnown = false
+            for _, en in ipairs(eggList) do
+                if string.find(string.lower(item.Name), string.lower(en)) then isKnown = true break end
+            end
+            
+            if isKnown then
+                local w = parseEggWeight(item)
+                if w > maxW then
+                    maxW = w
+                    heaviestEgg = item
+                elseif w == 0 and maxW == -1 then
+                    heaviestEgg = item
+                end
+                
+                if currentTargetEgg and string.find(string.lower(item.Name), string.lower(currentTargetEgg)) then
+                    table.insert(selectedMatches, item)
+                end
+            end
+        end
+    end
+    return selectedMatches, heaviestEgg
+end
+
+-- ==========================================
+-- 2. ฟังก์ชันค้นหาเฉพาะระบบ Auto Farm (อิงตาม selectedEggs Queue)
+-- ==========================================
+local function scanForFarmQueue()
+    local eggsByName = {}
+    for _, item in pairs(workspace:GetDescendants()) do
+        if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) then
+            for _, en in ipairs(eggList) do
+                if string.find(string.lower(item.Name), string.lower(en)) then 
+                    if not eggsByName[en] then eggsByName[en] = {} end
+                    table.insert(eggsByName[en], item)
+                    break 
+                end
+            end
+        end
+    end
+    
+    -- เรียงตามคิวใบที่ 1 ถึง 50 หาเจอใบไหนก่อนให้ส่งกลับไปฟาร์ม
+    for index, queueName in ipairs(selectedEggs) do
+        if eggsByName[queueName] and #eggsByName[queueName] > 0 then
+            return eggsByName[queueName][1], index
+        end
+    end
+    return nil, nil
+end
+
+local function updateInspectorESP()
+    clearESP()
+    local myChar = player.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    
+    local selectedMatches, heaviestEgg = scanAndInspect()
+    
+    if heaviestEgg then
+        local p = heaviestEgg:FindFirstChild("Handle") or heaviestEgg:FindFirstChild("EggBase") or heaviestEgg.PrimaryPart or heaviestEgg:FindFirstChildWhichIsA("BasePart")
+        local dist = (myHRP and p) and math.floor((myHRP.Position - p.Position).Magnitude) or 0
+        heavyTitle.Text = string.format("👑 HEAVIEST: <font color=\"#EAB308\"><b>%s</b></font>", heaviestEgg.Name)
+        heavyInfo.Text = string.format("W: <font color=\"#F59E0B\"><b>%s</b></font> | Dist: <b>%dm</b>", getFormattedWeight(heaviestEgg), dist)
+        if p then createDetailedESP(heaviestEgg, p, true) end
+    else
+        heavyTitle.Text = "👑 HEAVIEST: <font color=\"#EF4444\">Not Found</font>"
+        heavyInfo.Text = "Weight: - | Dist: -"
+    end
+    
+    if currentTargetEgg then
+        if #selectedMatches > 0 then
+            local nearestDist = math.huge
+            local bestMatch = selectedMatches[1]
+            for _, egg in pairs(selectedMatches) do
+                local p = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+                if p then
+                    local d = myHRP and math.floor((myHRP.Position - p.Position).Magnitude) or 0
+                    if d < nearestDist then nearestDist = d bestMatch = egg end
+                    if egg ~= heaviestEgg then createDetailedESP(egg, p, false) end
+                end
+            end
+            infoLabel.Text = string.format("Found: <font color=\"#10B981\"><b>%d</b></font> | Nearest: <b>%dm</b> | W: <b>%s</b>", #selectedMatches, nearestDist, getFormattedWeight(bestMatch))
+        else
+            infoLabel.Text = "Status: <font color=\"#EF4444\">Target Not Spawned</font>"
+        end
+    end
+end
+
+-- ==========================================
+-- ปุ่มกด (แยก Click เดี่ยว และ กดค้าง 3 วิ)
+-- ==========================================
+for i, eggName in ipairs(eggList) do
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, -4, 0, 24)
+    
+    local origColor
+    if i <= 4 then origColor = Color3.fromRGB(110, 30, 150)
+    elseif i <= 10 then origColor = Color3.fromRGB(160, 60, 10)
+    else origColor = Color3.fromRGB(26, 32, 45) end
+    
+    b.BackgroundColor3 = origColor
+    b.Text = "  " .. eggName
+    b.TextColor3 = Color3.fromRGB(240, 245, 255)
+    b.Font = Enum.Font.GothamSemibold
+    b.TextSize = 10
+    b.TextXAlignment = Enum.TextXAlignment.Left
+    b.AutoButtonColor = true
+    b.Parent = eggScroll
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+    
+    eggButtons[eggName] = b
+    originalBtnColors[eggName] = origColor
+    
+    local pressStartPos = nil
+    local isPressing = false
+
+    -- [คลิกธรรมดา] ตั้งเป้าหมาย Target ดูค่าพลัง/วาร์ปไปหา
+    b.Activated:Connect(function()
+        currentTargetEgg = eggName
+        targetLabel.Text = "🎯 TARGET: <font color=\"#60A5FA\"><b>" .. currentTargetEgg .. "</b></font>"
+        updateInspectorESP()
     end)
 
-    BindConn(UserInputService.InputBegan:Connect(function(input, gp)
-        if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
-            Bindings[bindKeyName] = input.KeyCode
-            keyBtn.Text = "[" .. input.KeyCode.Name .. "]"
-            keyBtn.BackgroundColor3 = Colors.Panel
-            keyBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-            isBinding = false
-        end
-    end))
+    -- [กดค้าง] เริ่มจับเวลา 3 วิ
+    b.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isPressing = true
+            pressStartPos = input.Position
 
-    return btn, keyBtn
-end
-
--- =======================================================
--- สร้างปุ่มเมนูหลัก
--- =======================================================
-local ESPBtn = Instance.new("TextButton", Main)
-ESPBtn.Size = UDim2.new(1, -24, 0, 35); ESPBtn.Position = UDim2.new(0, 12, 0, getY()); ESPBtn.BackgroundColor3 = Colors.ButtonESP
-ESPBtn.Text = "👁️ เปิดมองทะลุ (ESP+เลือด)"; ESPBtn.TextColor3 = Colors.Text; ESPBtn.TextSize = 12; ESPBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", ESPBtn).CornerRadius = UDim.new(0, 6)
-
-local CorpseESPBtn = Instance.new("TextButton", Main)
-CorpseESPBtn.Size = UDim2.new(1, -24, 0, 35); CorpseESPBtn.Position = UDim2.new(0, 12, 0, getY()); CorpseESPBtn.BackgroundColor3 = Colors.Corpse
-CorpseESPBtn.Text = "💀 เปิดมองศพ (Loot)"; CorpseESPBtn.TextColor3 = Colors.Text; CorpseESPBtn.TextSize = 12; CorpseESPBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CorpseESPBtn).CornerRadius = UDim.new(0, 6)
-
-local WeaponESPBtn = Instance.new("TextButton", Main)
-WeaponESPBtn.Size = UDim2.new(1, -24, 0, 35); WeaponESPBtn.Position = UDim2.new(0, 12, 0, getY()); WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
-WeaponESPBtn.Text = "🔫 บอกชื่อปืน/ไอเทมคนอื่น"; WeaponESPBtn.TextColor3 = Colors.Text; WeaponESPBtn.TextSize = 12; WeaponESPBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", WeaponESPBtn).CornerRadius = UDim.new(0, 6)
-
-local DayBtn = Instance.new("TextButton", Main)
-DayBtn.Size = UDim2.new(1, -24, 0, 35); DayBtn.Position = UDim2.new(0, 12, 0, getY()); DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
-DayBtn.Text = "☀️ กลางวัน+สว่างตลอด"; DayBtn.TextColor3 = Colors.Text; DayBtn.TextSize = 12; DayBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", DayBtn).CornerRadius = UDim.new(0, 6)
-
-local AutoDelAllBtn = Instance.new("TextButton", Main)
-AutoDelAllBtn.Size = UDim2.new(1, -24, 0, 35); AutoDelAllBtn.Position = UDim2.new(0, 12, 0, getY()); AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-AutoDelAllBtn.Text = "💥 ลบแมพทั้งหมด (Delete All)"; AutoDelAllBtn.TextColor3 = Colors.Text; AutoDelAllBtn.TextSize = 12; AutoDelAllBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", AutoDelAllBtn).CornerRadius = UDim.new(0, 6)
-
-local SliderFrame = Instance.new("Frame", Main)
-SliderFrame.Size = UDim2.new(1, -24, 0, 35); SliderFrame.Position = UDim2.new(0, 12, 0, getY()); SliderFrame.BackgroundColor3 = Colors.Panel
-Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
-local SliderFill = Instance.new("Frame", SliderFrame)
-SliderFill.Size = UDim2.new(0, 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(14, 165, 233); SliderFill.BorderSizePixel = 0
-Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 6)
-local SliderText = Instance.new("TextLabel", SliderFrame)
-SliderText.Size = UDim2.new(1, 0, 1, 0); SliderText.BackgroundTransparency = 1; SliderText.Text = "🏃 ความเร็ววิ่ง: 16"
-SliderText.TextColor3 = Colors.Text; SliderText.TextSize = 12; SliderText.Font = Enum.Font.GothamBold; SliderText.ZIndex = 2
-local SliderBtn = Instance.new("TextButton", SliderFrame)
-SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.BackgroundTransparency = 1; SliderBtn.Text = ""; SliderBtn.ZIndex = 3
-
-local AimBtn, _ = createHotkeyRow(getY(), "🎯 ระบบล็อคเป้า Aimbot", "Aim", Colors.ButtonAim)
-local HardLockBtn, _ = createHotkeyRow(getY(), "🔒 ปุ่มล็อคเจาะจงเป้าหมาย", "Lock", Color3.fromRGB(245, 158, 11))
-
-local FOVBtn = Instance.new("TextButton", Main)
-FOVBtn.Size = UDim2.new(1, -24, 0, 35); FOVBtn.Position = UDim2.new(0, 12, 0, getY()); FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-FOVBtn.Text = "⭕ เปิดวงกลมล็อคเป้า (FOV)"; FOVBtn.TextColor3 = Colors.Text; FOVBtn.TextSize = 12; FOVBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", FOVBtn).CornerRadius = UDim.new(0, 6)
-
-local FOVSliderFrame = Instance.new("Frame", Main)
-FOVSliderFrame.Size = UDim2.new(1, -24, 0, 35); FOVSliderFrame.Position = UDim2.new(0, 12, 0, getY()); FOVSliderFrame.BackgroundColor3 = Colors.Panel
-Instance.new("UICorner", FOVSliderFrame).CornerRadius = UDim.new(0, 6)
-local FOVSliderFill = Instance.new("Frame", FOVSliderFrame)
-FOVSliderFill.Size = UDim2.new(0.5, 0, 1, 0); FOVSliderFill.BackgroundColor3 = Color3.fromRGB(139, 92, 246); FOVSliderFill.BorderSizePixel = 0
-Instance.new("UICorner", FOVSliderFill).CornerRadius = UDim.new(0, 6)
-local FOVSliderText = Instance.new("TextLabel", FOVSliderFrame)
-FOVSliderText.Size = UDim2.new(1, 0, 1, 0); FOVSliderText.BackgroundTransparency = 1; FOVSliderText.Text = "⭕ ขนาดวง FOV: 150"
-FOVSliderText.TextColor3 = Colors.Text; FOVSliderText.TextSize = 12; FOVSliderText.Font = Enum.Font.GothamBold; FOVSliderText.ZIndex = 2
-local FOVSliderBtn = Instance.new("TextButton", FOVSliderFrame)
-FOVSliderBtn.Size = UDim2.new(1, 0, 1, 0); FOVSliderBtn.BackgroundTransparency = 1; FOVSliderBtn.Text = ""; FOVSliderBtn.ZIndex = 3
-
-local AimPartBtn = Instance.new("TextButton", Main)
-AimPartBtn.Size = UDim2.new(1, -24, 0, 35); AimPartBtn.Position = UDim2.new(0, 12, 0, getY()); AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-AimPartBtn.Text = "🎯 เล็ง: ลำตัว (สลับเป้า)"; AimPartBtn.TextColor3 = Colors.Text; AimPartBtn.TextSize = 12; AimPartBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", AimPartBtn).CornerRadius = UDim.new(0, 6)
-
-local WallCheckBtn = Instance.new("TextButton", Main)
-WallCheckBtn.Size = UDim2.new(1, -24, 0, 35); WallCheckBtn.Position = UDim2.new(0, 12, 0, getY()); WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-WallCheckBtn.Text = "🧱 ทะลุกำแพง: ได้ (คลิกสลับ)"; WallCheckBtn.TextColor3 = Colors.Text; WallCheckBtn.TextSize = 12; WallCheckBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", WallCheckBtn).CornerRadius = UDim.new(0, 6)
-
--- [ใหม่] ปุ่มยิงดักหน้า Prediction
-local PredictionBtn = Instance.new("TextButton", Main)
-PredictionBtn.Size = UDim2.new(1, -24, 0, 35); PredictionBtn.Position = UDim2.new(0, 12, 0, getY()); PredictionBtn.BackgroundColor3 = Colors.Pred
-PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): ปิด"; PredictionBtn.TextColor3 = Colors.Text; PredictionBtn.TextSize = 12; PredictionBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", PredictionBtn).CornerRadius = UDim.new(0, 6)
-
-local PredSliderFrame = Instance.new("Frame", Main)
-PredSliderFrame.Size = UDim2.new(1, -24, 0, 35); PredSliderFrame.Position = UDim2.new(0, 12, 0, getY()); PredSliderFrame.BackgroundColor3 = Colors.Panel
-Instance.new("UICorner", PredSliderFrame).CornerRadius = UDim.new(0, 6)
-local PredSliderFill = Instance.new("Frame", PredSliderFrame)
-PredSliderFill.Size = UDim2.new(0.5, 0, 1, 0); PredSliderFill.BackgroundColor3 = Colors.Pred; PredSliderFill.BorderSizePixel = 0
-Instance.new("UICorner", PredSliderFill).CornerRadius = UDim.new(0, 6)
-local PredSliderText = Instance.new("TextLabel", PredSliderFrame)
-PredSliderText.Size = UDim2.new(1, 0, 1, 0); PredSliderText.BackgroundTransparency = 1; PredSliderText.Text = "🔮 ค่าดักหน้ากระสุน: 0.1"
-PredSliderText.TextColor3 = Colors.Text; PredSliderText.TextSize = 12; PredSliderText.Font = Enum.Font.GothamBold; PredSliderText.ZIndex = 2
-local PredSliderBtn = Instance.new("TextButton", PredSliderFrame)
-PredSliderBtn.Size = UDim2.new(1, 0, 1, 0); PredSliderBtn.BackgroundTransparency = 1; PredSliderBtn.Text = ""; PredSliderBtn.ZIndex = 3
-
-local AutoShootBtn = Instance.new("TextButton", Main)
-AutoShootBtn.Size = UDim2.new(1, -24, 0, 35); AutoShootBtn.Position = UDim2.new(0, 12, 0, getY()); AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: ปิด"; AutoShootBtn.TextColor3 = Colors.Text; AutoShootBtn.TextSize = 12; AutoShootBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", AutoShootBtn).CornerRadius = UDim.new(0, 6)
-
-local CreatePoleBtn, _ = createHotkeyRow(getY(), "🧱 โหมดสร้างเสาปีน", "Pole", Color3.fromRGB(16, 185, 129))
-
-local TracersBtn = Instance.new("TextButton", Main)
-TracersBtn.Size = UDim2.new(1, -24, 0, 35); TracersBtn.Position = UDim2.new(0, 12, 0, getY()); TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
-TracersBtn.Text = "🧶 เปิดเส้นชี้เป้า (Tracers)"; TracersBtn.TextColor3 = Colors.Text; TracersBtn.TextSize = 12; TracersBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", TracersBtn).CornerRadius = UDim.new(0, 6)
-
-local TracerModeBtn = Instance.new("TextButton", Main)
-TracerModeBtn.Size = UDim2.new(1, -24, 0, 35); TracerModeBtn.Position = UDim2.new(0, 12, 0, getY()); TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-TracerModeBtn.Text = "🧶 โหมดเส้น: ทุกคน (สลับ)"; TracerModeBtn.TextColor3 = Colors.Text; TracerModeBtn.TextSize = 12; TracerModeBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", TracerModeBtn).CornerRadius = UDim.new(0, 6)
-
-local StatsBtn = Instance.new("TextButton", Main)
-StatsBtn.Size = UDim2.new(1, -24, 0, 35); StatsBtn.Position = UDim2.new(0, 12, 0, getY()); StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
-StatsBtn.Text = "📊 ส่องข้อมูลเป้าหมาย (Stats)"; StatsBtn.TextColor3 = Colors.Text; StatsBtn.TextSize = 12; StatsBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", StatsBtn).CornerRadius = UDim.new(0, 6)
-
-local DeleteModeBtn, _ = createHotkeyRow(getY(), "🖱️ โหมดลบของ", "Del", Color3.fromRGB(239, 68, 68))
-
-local WarningBtn = Instance.new("TextButton", Main)
-WarningBtn.Size = UDim2.new(1, -24, 0, 35); WarningBtn.Position = UDim2.new(0, 12, 0, getY()); WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
-WarningBtn.Text = "⚠️ เตือนภัยกระบอกปืน (Raycast)"; WarningBtn.TextColor3 = Colors.Text; WarningBtn.TextSize = 12; WarningBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", WarningBtn).CornerRadius = UDim.new(0, 6)
-
-local ExitBtn = Instance.new("TextButton", Main)
-ExitBtn.Size = UDim2.new(1, -24, 0, 35); ExitBtn.Position = UDim2.new(0, 12, 0, getY()); ExitBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-ExitBtn.Text = "❌ ปิดสคริปต์ (Exit & Clear)"; ExitBtn.TextColor3 = Colors.Text; ExitBtn.TextSize = 12; ExitBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", ExitBtn).CornerRadius = UDim.new(0, 6)
-
-
--- =======================================================
--- [ระบบ Aimbot FOV วงกลมล็อคเป้า]
--- =======================================================
-local FOVEnabled = false
-local FOVRadius = 150
-local minFOV, maxFOV = 30, 600
-
-local FOVGui = Instance.new("ScreenGui")
-FOVGui.Name = "FOVCircleUI_" .. tostring(math.random(100000, 999999))
-FOVGui.ResetOnSpawn = false
-FOVGui.IgnoreGuiInset = true
-FOVGui.Parent = SafeGuiParent
-ProtectMyUI(FOVGui)
-_G.UtilityFOVUI = FOVGui
-
-local FOVFrame = Instance.new("Frame", FOVGui)
-FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
-FOVFrame.BackgroundTransparency = 1
-FOVFrame.Visible = false
-
-local FOVStroke = Instance.new("UIStroke", FOVFrame)
-FOVStroke.Color = Color3.fromRGB(255, 255, 255)
-FOVStroke.Thickness = 1.2
-local FOVCorner = Instance.new("UICorner", FOVFrame)
-FOVCorner.CornerRadius = UDim.new(1, 0)
-
-FOVBtn.Activated:Connect(function()
-    FOVEnabled = not FOVEnabled
-    if FOVEnabled then
-        FOVBtn.Text = "⭕ ปิดวงกลม (ล็อคทั้งจอ)"
-        FOVBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        FOVFrame.Visible = true
-        Status.Text = "เปิดใช้ระบบ FOV (ล็อคเฉพาะในวงกลม)"
-        Status.TextColor3 = Colors.Green
-    else
-        FOVBtn.Text = "⭕ เปิดวงกลมล็อคเป้า (FOV)"
-        FOVBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-        FOVFrame.Visible = false
-        Status.Text = "ปิดวงกลมแล้ว (Aimbot จะล็อคแบบทั้งจอ)"
-        Status.TextColor3 = Colors.Status
-    end
-end)
-
-local draggingFOV = false
-local function updateFOVSlider(input)
-    local relativeX = math.clamp(input.Position.X - FOVSliderFrame.AbsolutePosition.X, 0, FOVSliderFrame.AbsoluteSize.X)
-    local percentage = relativeX / FOVSliderFrame.AbsoluteSize.X
-    FOVRadius = math.floor(minFOV + ((maxFOV - minFOV) * percentage))
-    FOVSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-    FOVSliderText.Text = "⭕ ขนาดวง FOV: " .. FOVRadius
-    FOVFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
-end
-
-FOVSliderBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingFOV = true; updateFOVSlider(input)
-    end
-end)
-BindConn(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingFOV = false end
-end))
-BindConn(UserInputService.InputChanged:Connect(function(input)
-    if draggingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateFOVSlider(input) end
-end))
-
-BindConn(RunService.RenderStepped:Connect(function()
-    if FOVEnabled and FOVFrame.Visible then
-        local mousePos = UserInputService:GetMouseLocation()
-        FOVFrame.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
-    end
-end))
-
--- =======================================================
--- [ระบบการทำงานต่างๆ]
--- =======================================================
-
--- 1. ความเร็ววิ่ง
-local minSpeed = 16; local maxSpeed = 200; local currentSpeed = 16; local draggingSlider = false; local wasSpeedForcing = false
-local function updateSpeedSlider(input)
-    local relativeX = math.clamp(input.Position.X - SliderFrame.AbsolutePosition.X, 0, SliderFrame.AbsoluteSize.X)
-    local percentage = relativeX / SliderFrame.AbsoluteSize.X
-    currentSpeed = math.floor(minSpeed + ((maxSpeed - minSpeed) * percentage))
-    SliderFill.Size = UDim2.new(percentage, 0, 1, 0); SliderText.Text = "🏃 ความเร็ววิ่ง: " .. currentSpeed
-end
-SliderBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingSlider = true; updateSpeedSlider(input)
-    end
-end)
-BindConn(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
-end))
-BindConn(UserInputService.InputChanged:Connect(function(input)
-    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSpeedSlider(input) end
-end))
-BindConn(RunService.Heartbeat:Connect(function()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    if hum then
-        if currentSpeed > 16 then hum.WalkSpeed = currentSpeed; wasSpeedForcing = true
-        elseif wasSpeedForcing then hum.WalkSpeed = 16; wasSpeedForcing = false end
-    end
-end))
-
--- 2. ลบแมพทั้งหมด
-local AutoDelAllEnabled = false
-local function toggleAutoDelAll()
-    AutoDelAllEnabled = not AutoDelAllEnabled
-    if AutoDelAllEnabled then
-        AutoDelAllBtn.Text = "💥 กำลังลบแมพทั้งหมด..."
-        AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        pcall(function() Status.Text = "กำลังดำเนินการเคลียร์แมพ..."; Status.TextColor3 = Colors.Green end)
-        task.spawn(function()
-            local processCount = 0
-            for _, hit in pairs(workspace:GetDescendants()) do
-                if hit:IsA("BasePart") and not hit:IsA("Terrain") then
-                    if not isPlayerCharacter(hit) then
-                        if not MapDeletedObjects[hit] then
-                            MapDeletedObjects[hit] = {
-                                origTransparency = hit.Transparency, origCanCollide = hit.CanCollide, origCanQuery = hit.CanQuery
-                            }
-                            hit.CanCollide = false; hit.Transparency = 1; pcall(function() hit.CanQuery = false end)
-                        end
-                        processCount = processCount + 1
-                        if processCount % 1000 == 0 then task.wait() end
-                    end
-                end
-            end
-            pcall(function() AutoDelAllBtn.Text = "💥 คืนค่าแมพ (Restore All)"; Status.Text = "ลบออบเจกต์ในแมพทั้งหมดแล้ว!" end)
-        end)
-    else
-        AutoDelAllBtn.Text = "💥 กำลังคืนค่า..."
-        AutoDelAllBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-        pcall(function() Status.Text = "กำลังดึงแมพกลับมา..."; Status.TextColor3 = Colors.Status end)
-        task.spawn(function()
-            local processCount = 0
-            for obj, data in pairs(MapDeletedObjects) do
-                if obj then
-                    pcall(function()
-                        obj.Transparency = data.origTransparency; obj.CanCollide = data.origCanCollide
-                        if data.origCanQuery ~= nil then obj.CanQuery = data.origCanQuery end
-                    end)
-                end
-                processCount = processCount + 1
-                if processCount % 1000 == 0 then task.wait() end
-            end
-            MapDeletedObjects = {} 
-            pcall(function() AutoDelAllBtn.Text = "💥 ลบแมพทั้งหมด (Delete All)"; Status.Text = "คืนค่าแมพกลับมาปกติเรียบร้อย!" end)
-        end)
-    end
-end
-AutoDelAllBtn.Activated:Connect(toggleAutoDelAll)
-
--- 3. ESP มองทะลุ
-local ESPEnabled = false
-local espRenderConnection = nil
-local function RemoveESP(char)
-    if char then
-        local hl = char:FindFirstChild("PrankESP"); if hl then hl:Destroy() end
-        local hpBar = char:FindFirstChild("HealthESP"); if hpBar then hpBar:Destroy() end
-    end
-end
-local function toggleESP()
-    ESPEnabled = not ESPEnabled
-    if ESPEnabled then
-        ESPBtn.Text = "👁️ ปิดมองทะลุ"
-        ESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "ESP: มองเห็น(แดง) / หลังกำแพง(เขียว)"
-        Status.TextColor3 = Colors.Green
-        espRenderConnection = BindConn(RunService.RenderStepped:Connect(function()
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local char = p.Character
-                    local hum = char:FindFirstChild("Humanoid")
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    local head = char:FindFirstChild("Head") or hrp
-                    if hum and hrp and hum.Health > 0 then
-                        local hl = char:FindFirstChild("PrankESP")
-                        if not hl then
-                            hl = Instance.new("Highlight")
-                            hl.Name = "PrankESP"; hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                            hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
-                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char
-                        end
-                        local isVisible = false
-                        local rayParams = RaycastParams.new()
-                        rayParams.FilterDescendantsInstances = {LocalPlayer.Character, char}
-                        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                        rayParams.IgnoreWater = true
-                        if workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, rayParams) == nil then isVisible = true end
-                        hl.FillColor = isVisible and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
-
-                        local hpBar = char:FindFirstChild("HealthESP")
-                        if not hpBar then
-                            local bb = Instance.new("BillboardGui")
-                            bb.Name = "HealthESP"; bb.AlwaysOnTop = true; bb.Size = UDim2.new(3, 0, 1.2, 0)
-                            bb.StudsOffset = Vector3.new(0, 2, 0); bb.Adornee = head; bb.Parent = char
-                            local bg = Instance.new("Frame", bg)
-                            bg.Name = "Frame"; bg.Size = UDim2.new(1, 0, 0.25, 0); bg.Position = UDim2.new(0, 0, 0.75, 0); bg.BackgroundColor3 = Color3.new(0, 0, 0); bg.BorderSizePixel = 1
-                            local fill = Instance.new("Frame", bg)
-                            fill.Name = "Fill"; fill.Size = UDim2.new(1, 0, 1, 0); fill.AnchorPoint = Vector2.new(0, 0); fill.BackgroundColor3 = Color3.new(0, 1, 0); fill.BorderSizePixel = 0
-                            local distTxt = Instance.new("TextLabel", bb)
-                            distTxt.Name = "DistText"; distTxt.Size = UDim2.new(1, 0, 0.6, 0); distTxt.Position = UDim2.new(0, 0, 0.1, 0)
-                            distTxt.BackgroundTransparency = 1; distTxt.TextColor3 = Color3.fromRGB(255, 255, 255); distTxt.TextStrokeTransparency = 0
-                            distTxt.Font = Enum.Font.GothamBold; distTxt.TextSize = 11; distTxt.Text = ""
-                        end
-                        if hpBar and hum then
-                            local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                            hpBar.Frame.Fill.Size = UDim2.new(healthPercent, 0, 1, 0)
-                            hpBar.Frame.Fill.BackgroundColor3 = Color3.new(1 - healthPercent, healthPercent, 0)
-                            local distLabel = hpBar:FindFirstChild("DistText")
-                            if distLabel then distLabel.Text = math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m" end
-                        end
-                    elseif hum and hum.Health <= 0 then RemoveESP(char) end
-                end
-            end
-        end))
-    else
-        ESPBtn.Text = "👁️ เปิดมองทะลุ (ESP+เลือด)"
-        ESPBtn.BackgroundColor3 = Colors.ButtonESP
-        Status.Text = "ปิดโหมดมองทะลุ"
-        Status.TextColor3 = Colors.Status
-        if espRenderConnection then espRenderConnection:Disconnect(); espRenderConnection = nil end
-        for _, p in pairs(Players:GetPlayers()) do if p.Character then RemoveESP(p.Character) end end
-    end
-end
-ESPBtn.Activated:Connect(toggleESP)
-BindConn(Players.PlayerRemoving:Connect(function(p) if p.Character then RemoveESP(p.Character) end end))
-
--- 3.5 Corpse ESP 
-local CorpseESPEnabled = false
-local CorpseFolder = Instance.new("Folder")
-CorpseFolder.Name = "CorpseESPFolder_" .. tostring(math.random(1000,9999))
-CorpseFolder.Parent = ScreenGui
-_G.UtilityCorpseFolder = CorpseFolder
-
-local function toggleCorpseESP()
-    CorpseESPEnabled = not CorpseESPEnabled
-    if CorpseESPEnabled then
-        CorpseESPBtn.Text = "💀 ปิดมองศพ"
-        CorpseESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        
-        task.spawn(function()
-            while CorpseESPEnabled do
-                local descendants = workspace:GetDescendants()
-                local processCount = 0
-                for i = 1, #descendants do
-                    if not CorpseESPEnabled then break end
-                    local obj = descendants[i]
-                    local isTarget = false; local targetPart = nil; local espName = ""; local displayName = "💀 ศพ (Loot)"
-
-                    if obj:IsA("ProximityPrompt") then
-                        local text = (obj.ActionText or "") .. " " .. (obj.ObjectText or "")
-                        if string.find(text, "ค้นหา") or string.find(text, "Search") then
-                            isTarget = true; targetPart = obj.Parent; espName = "Prompt_" .. tostring(targetPart)
-                        end
-                    elseif obj:IsA("Model") then
-                        local hum = obj:FindFirstChild("Humanoid")
-                        if hum and hum.Health <= 0 and obj ~= LocalPlayer.Character then
-                            isTarget = true; targetPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                            espName = "Ragdoll_" .. obj.Name; displayName = "💀 ศพ: " .. obj.Name
-                        else
-                            local lName = string.lower(obj.Name)
-                            if lName == "corpse" or lName == "deadbody" or lName == "lootdrop" or lName == "droppedloot" then
-                                isTarget = true; targetPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"); espName = "NamedObj_" .. tostring(obj)
-                            end
-                        end
-                    elseif obj:IsA("BasePart") then
-                        local lName = string.lower(obj.Name)
-                        if lName == "corpse" or lName == "deadbody" or lName == "lootdrop" or lName == "droppedloot" then
-                            isTarget = true; targetPart = obj; espName = "NamedObj_" .. tostring(obj)
-                        end
-                    end
-
-                    if isTarget and targetPart and targetPart:IsA("BasePart") then
-                        local uniqueID = espName .. tostring(math.floor(targetPart.Position.X))
-                        if not CorpseFolder:FindFirstChild(uniqueID) then
-                            local bb = Instance.new("BillboardGui")
-                            bb.Name = uniqueID; bb.Adornee = targetPart; bb.Size = UDim2.new(0, 100, 0, 20); bb.StudsOffset = Vector3.new(0, 2, 0); bb.AlwaysOnTop = true
-                            local txt = Instance.new("TextLabel", bb)
-                            txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1; txt.Text = displayName; txt.TextColor3 = Color3.fromRGB(255, 255, 0) ; txt.TextStrokeTransparency = 0; txt.Font = Enum.Font.GothamBold; txt.TextSize = 11
-                            bb.Parent = CorpseFolder
-                            local conn; conn = targetPart.AncestryChanged:Connect(function()
-                                if not targetPart:IsDescendantOf(workspace) then bb:Destroy(); if conn then conn:Disconnect() end end
-                            end)
-                            BindConn(conn)
-                        end
-                    end
-                    processCount = processCount + 1
-                    if processCount % 500 == 0 then task.wait() end
-                end
-                for i = 1, 3 do if not CorpseESPEnabled then break end task.wait(1) end
-            end
-        end)
-    else
-        CorpseESPBtn.Text = "💀 เปิดมองศพ (Loot)"
-        CorpseESPBtn.BackgroundColor3 = Colors.Corpse
-        CorpseFolder:ClearAllChildren()
-    end
-end
-CorpseESPBtn.Activated:Connect(toggleCorpseESP)
-
--- 4. Weapon ESP
-local WeaponESPEnabled = false
-local weaponEspLoop = nil
-local function toggleWeaponESP()
-    WeaponESPEnabled = not WeaponESPEnabled
-    if WeaponESPEnabled then
-        WeaponESPBtn.Text = "🔫 ปิดบอกชื่อปืน"
-        WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        weaponEspLoop = BindConn(RunService.Heartbeat:Connect(function()
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
-                    local char = p.Character
-                    local head = char.Head
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    local toolName = tool and tool.Name or "มือเปล่า"
-                    local bg = char:FindFirstChild("WeaponESP_UI")
-                    if not bg then
-                        bg = Instance.new("BillboardGui")
-                        bg.Name = "WeaponESP_UI"; bg.Size = UDim2.new(0, 150, 0, 20); bg.StudsOffset = Vector3.new(0, 2.8, 0)
-                        bg.AlwaysOnTop = true; bg.Adornee = head
-                        local txt = Instance.new("TextLabel", bg)
-                        txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1; txt.TextStrokeTransparency = 0
-                        txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Name = "WpnText"
-                        bg.Parent = char
-                    end
-                    if tool then bg.WpnText.Text = "🔫 " .. toolName; bg.WpnText.TextColor3 = Color3.fromRGB(255, 100, 100)
-                    else bg.WpnText.Text = "✋ มือเปล่า"; bg.WpnText.TextColor3 = Color3.fromRGB(200, 200, 200) end
-                end
-            end
-        end))
-    else
-        WeaponESPBtn.Text = "🔫 บอกชื่อปืน/ไอเทมคนอื่น"
-        WeaponESPBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
-        if weaponEspLoop then weaponEspLoop:Disconnect(); weaponEspLoop = nil end
-        for _, p in pairs(Players:GetPlayers()) do
-            if p.Character then local bg = p.Character:FindFirstChild("WeaponESP_UI"); if bg then bg:Destroy() end end
-        end
-    end
-end
-WeaponESPBtn.Activated:Connect(toggleWeaponESP)
-
--- 5. Always Day
-local AlwaysDayEnabled = false
-local dayConnection = nil
-local function toggleDay()
-    AlwaysDayEnabled = not AlwaysDayEnabled
-    local Lighting = game:GetService("Lighting")
-    if AlwaysDayEnabled then
-        DayBtn.Text = "☀️ ปิดสว่าง/เช้าตลอด"
-        DayBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        origAmbient = Lighting.Ambient; origOutdoorAmbient = Lighting.OutdoorAmbient; origShadows = Lighting.GlobalShadows
-        Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false
-        dayConnection = BindConn(Lighting.Changed:Connect(function()
-            if AlwaysDayEnabled then Lighting.ClockTime = 12; Lighting.Ambient = Color3.new(1, 1, 1); Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false end
-        end))
-    else
-        DayBtn.Text = "☀️ กลางวัน+สว่างตลอด"
-        DayBtn.BackgroundColor3 = Color3.fromRGB(250, 204, 21)
-        if dayConnection then dayConnection:Disconnect(); dayConnection = nil end
-        Lighting.Ambient = origAmbient or Color3.fromRGB(127, 127, 127)
-        Lighting.OutdoorAmbient = origOutdoorAmbient or Color3.fromRGB(127, 127, 127)
-        if origShadows ~= nil then Lighting.GlobalShadows = origShadows end
-    end
-end
-DayBtn.Activated:Connect(toggleDay)
-
--- =======================================================
--- [ อัปเดตยิงดักหน้า + ออโต้ยิง ] 6. Aimbot 
--- =======================================================
-local isAimbotting = false
-local aimbotConnection = nil
-local currentTarget = nil 
-local AimTargetPart = "HumanoidRootPart"
-local WallCheckEnabled = false
-
-local AutoShootEnabled = false
-local lastAutoShoot = 0
-
-local PredictionEnabled = false
-local PredictionAmt = 0.1
-local draggingPred = false
-
--- ปุ่มเปิด-ปิดยิงดักหน้า
-PredictionBtn.Activated:Connect(function()
-    PredictionEnabled = not PredictionEnabled
-    if PredictionEnabled then
-        PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): เปิด"
-        PredictionBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เปิดคำนวณฟิสิกส์ยิงดักหน้าเป้าหมายแล้ว"
-    else
-        PredictionBtn.Text = "🔮 ยิงดักหน้า (Prediction): ปิด"
-        PredictionBtn.BackgroundColor3 = Colors.Pred
-        Status.Text = "ปิดระบบยิงดักหน้าแล้ว"
-    end
-    Status.TextColor3 = Colors.Green
-end)
-
-local function updatePredSlider(input)
-    local relativeX = math.clamp(input.Position.X - PredSliderFrame.AbsolutePosition.X, 0, PredSliderFrame.AbsoluteSize.X)
-    local percentage = relativeX / PredSliderFrame.AbsoluteSize.X
-    PredictionAmt = math.floor((0.01 + (0.5 - 0.01) * percentage) * 100) / 100 -- ค่าระหว่าง 0.01 ถึง 0.50
-    PredSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-    PredSliderText.Text = "🔮 ค่าดักหน้ากระสุน: " .. tostring(PredictionAmt)
-end
-
-PredSliderBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingPred = true; updatePredSlider(input)
-    end
-end)
-BindConn(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingPred = false end
-end))
-BindConn(UserInputService.InputChanged:Connect(function(input)
-    if draggingPred and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updatePredSlider(input) end
-end))
-
-AutoShootBtn.Activated:Connect(function()
-    AutoShootEnabled = not AutoShootEnabled
-    if AutoShootEnabled then
-        AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: เปิด"
-        AutoShootBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "เปิดใช้ออโต้ยิง (TriggerBot) แล้ว"
-        Status.TextColor3 = Colors.Green
-    else
-        AutoShootBtn.Text = "🔫 ออโต้ยิงเมื่อล็อคเป้า: ปิด"
-        AutoShootBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-        Status.Text = "ปิดการออโต้ยิงแล้ว"
-        Status.TextColor3 = Colors.Status
-    end
-end)
-
-AimPartBtn.Activated:Connect(function()
-    if AimTargetPart == "HumanoidRootPart" then
-        AimTargetPart = "Head"
-        AimPartBtn.Text = "🎯 เล็ง: หัว (สลับเป้า)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "เป้าหมาย Aimbot: หัว (Head)"
-    else
-        AimTargetPart = "HumanoidRootPart"
-        AimPartBtn.Text = "🎯 เล็ง: ลำตัว (สลับเป้า)"; AimPartBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-        Status.Text = "เป้าหมาย Aimbot: ลำตัว (Torso)"
-    end
-    Status.TextColor3 = Colors.Green
-end)
-
-WallCheckBtn.Activated:Connect(function()
-    WallCheckEnabled = not WallCheckEnabled
-    if WallCheckEnabled then
-        WallCheckBtn.Text = "🧱 ทะลุกำแพง: ไม่ได้ (ล็อคแค่ตัวแดง)"
-        WallCheckBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "โหมด Aimbot: ล็อคเฉพาะคนที่มองเห็นเท่านั้น"
-    else
-        WallCheckBtn.Text = "🧱 ทะลุกำแพง: ได้ (คลิกสลับ)"
-        WallCheckBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "โหมด Aimbot: ทะลุกำแพงได้"
-    end
-    Status.TextColor3 = Colors.Green
-end)
-
-local function stopAimbot()
-    isAimbotting = false
-    hardLockedPlayer = nil
-    currentTarget = nil
-    if aimbotConnection then aimbotConnection:Disconnect() end
-    AimBtn.Text = " 🎯 ระบบล็อคเป้า Aimbot"
-    AimBtn.BackgroundColor3 = Colors.ButtonAim
-end
-
-local function ProcessAutoShoot()
-    if AutoShootEnabled then
-        if tick() - lastAutoShoot > 0.05 then 
-            lastAutoShoot = tick()
-            if mouse1click then
-                mouse1click()
-            else
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(0,0))
-            end
-        end
-    end
-end
-
-local function toggleAimbot()
-    if isAimbotting then
-        stopAimbot()
-        Status.Text = "ปิดระบบล็อคเป้าแล้ว"
-        Status.TextColor3 = Colors.Status
-        return
-    end
-    isAimbotting = true
-    AimBtn.Text = " 🎯 กำลังเล็ง..."
-    AimBtn.BackgroundColor3 = Colors.Green
-    Status.Text = "กำลังหันกล้องหาเป้าหมาย!"
-    Status.TextColor3 = Colors.ButtonAim
-
-    aimbotConnection = BindConn(RunService.RenderStepped:Connect(function()
-        if hardLockedPlayer then
-            if hardLockedPlayer.Character and hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart") and hardLockedPlayer.Character:FindFirstChild("Humanoid") and hardLockedPlayer.Character.Humanoid.Health > 0 then
-                local targetPartObj = hardLockedPlayer.Character:FindFirstChild(AimTargetPart) or hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart")
-                
-                local canAim = true
-                if WallCheckEnabled then
-                    local rayParams = RaycastParams.new()
-                    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, hardLockedPlayer.Character}
-                    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                    rayParams.IgnoreWater = true
-                    if workspace:Raycast(Camera.CFrame.Position, targetPartObj.Position - Camera.CFrame.Position, rayParams) ~= nil then
-                        canAim = false
-                    end
-                end
-                
-                if canAim then
-                    local aimPos = targetPartObj.Position
-                    if PredictionEnabled then
-                        local vel = targetPartObj.AssemblyLinearVelocity
-                        if vel then aimPos = aimPos + (vel * PredictionAmt) end
-                    end
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
-                    ProcessAutoShoot() 
-                end
-                return 
-            else
-                hardLockedPlayer = nil
-                Status.Text = "เป้าหมายที่ล็อคหายไป (กลับสู่โหมดหาตามเมาส์)"
-            end
-        end
-        
-        local closestPlayer = nil
-        local shortestDistance = math.huge
-        local mousePos = UserInputService:GetMouseLocation()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                local partToAim = p.Character:FindFirstChild(AimTargetPart) or p.Character:FindFirstChild("HumanoidRootPart")
-                local pos, onScreen = Camera:WorldToViewportPoint(partToAim.Position)
-                if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                    local isValidTarget = true
+            task.delay(3, function()
+                if isPressing then
+                    isPressing = false 
                     
-                    if FOVEnabled and dist > FOVRadius then isValidTarget = false end
-                    
-                    if WallCheckEnabled and isValidTarget then
-                        local rayParams = RaycastParams.new()
-                        rayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character}
-                        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                        rayParams.IgnoreWater = true
-                        if workspace:Raycast(Camera.CFrame.Position, partToAim.Position - Camera.CFrame.Position, rayParams) ~= nil then 
-                            isValidTarget = false 
-                        end
-                    end
-                    
-                    if isValidTarget and dist < shortestDistance then
-                        closestPlayer = p
-                        shortestDistance = dist
-                    end
-                end
-            end
-        end
-        currentTarget = closestPlayer
-        
-        if currentTarget and currentTarget.Character then
-            local targetPartObj = currentTarget.Character:FindFirstChild(AimTargetPart) or currentTarget.Character:FindFirstChild("HumanoidRootPart")
-            local aimPos = targetPartObj.Position
-            if PredictionEnabled then
-                local vel = targetPartObj.AssemblyLinearVelocity
-                if vel then aimPos = aimPos + (vel * PredictionAmt) end
-            end
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
-            ProcessAutoShoot() 
-        end
-    end))
-end
-AimBtn.Activated:Connect(toggleAimbot)
-
-HardLockBtn.Activated:Connect(function()
-    if isAimbotting then
-        if hardLockedPlayer then
-            hardLockedPlayer = nil
-            Status.Text = "ปลดล็อคเจาะจง (เล็งตามเมาส์ต่อ)"
-            HardLockBtn.Text = " 🔒 ปุ่มล็อคเจาะจงเป้าหมาย"
-            HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-        else
-            if currentTarget then
-                hardLockedPlayer = currentTarget
-                Status.Text = "🔒 ล็อคตายตัวที่: " .. hardLockedPlayer.Name
-                HardLockBtn.Text = " 🔒 ปลดล็อคเป้าหมาย"
-                HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-            end
-        end
-    end
-end)
-
--- 7. Stats Panel
-local StatsEnabled = false
-local StatsPanel = Instance.new("Frame")
-StatsPanel.Size = UDim2.new(0, 200, 0, 130)
-StatsPanel.Position = UDim2.new(0.05, 0, 0.4, 0)
-StatsPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-StatsPanel.BorderSizePixel = 1; StatsPanel.BorderColor3 = Color3.fromRGB(14, 165, 233)
-StatsPanel.Visible = false; StatsPanel.Active = true; StatsPanel.Parent = ScreenGui
-Instance.new("UICorner", StatsPanel).CornerRadius = UDim.new(0, 6)
-
-local statDrag, statInput, statDragStart, statStartPos
-StatsPanel.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        statDrag = true; statDragStart = input.Position; statStartPos = StatsPanel.Position
-        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then statDrag = false end end)
-    end
-end)
-BindConn(UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then statInput = input end
-    if input == statInput and statDrag then
-        local delta = input.Position - statDragStart
-        StatsPanel.Position = UDim2.new(statStartPos.X.Scale, statStartPos.X.Offset + delta.X, statStartPos.Y.Scale, statStartPos.Y.Offset + delta.Y)
-    end
-end))
-
-local StatTitle = Instance.new("TextLabel", StatsPanel)
-StatTitle.Size = UDim2.new(1, 0, 0, 25); StatTitle.BackgroundTransparency = 1
-StatTitle.Text = "🎯 เป้าหมาย Aimbot"; StatTitle.TextColor3 = Color3.fromRGB(14, 165, 233)
-StatTitle.Font = Enum.Font.GothamBold; StatTitle.TextSize = 13
-
-local StatName = Instance.new("TextLabel", StatsPanel)
-StatName.Size = UDim2.new(1, -10, 0, 20); StatName.Position = UDim2.new(0, 10, 0, 30)
-StatName.BackgroundTransparency = 1; StatName.TextXAlignment = Enum.TextXAlignment.Left
-StatName.TextColor3 = Colors.Text; StatName.Font = Enum.Font.Gotham; StatName.TextSize = 12
-
-local StatHP = Instance.new("TextLabel", StatsPanel)
-StatHP.Size = UDim2.new(1, -10, 0, 20); StatHP.Position = UDim2.new(0, 10, 0, 50)
-StatHP.BackgroundTransparency = 1; StatHP.TextXAlignment = Enum.TextXAlignment.Left
-StatHP.TextColor3 = Colors.Green; StatHP.Font = Enum.Font.Gotham; StatHP.TextSize = 12
-
-local StatWeapon = Instance.new("TextLabel", StatsPanel)
-StatWeapon.Size = UDim2.new(1, -10, 0, 20); StatWeapon.Position = UDim2.new(0, 10, 0, 70)
-StatWeapon.BackgroundTransparency = 1; StatWeapon.TextXAlignment = Enum.TextXAlignment.Left
-StatWeapon.TextColor3 = Color3.fromRGB(236, 72, 153); StatWeapon.Font = Enum.Font.Gotham; StatWeapon.TextSize = 12
-
-local StatDist = Instance.new("TextLabel", StatsPanel)
-StatDist.Size = UDim2.new(1, -10, 0, 20); StatDist.Position = UDim2.new(0, 10, 0, 90)
-StatDist.BackgroundTransparency = 1; StatDist.TextXAlignment = Enum.TextXAlignment.Left
-StatDist.TextColor3 = Color3.fromRGB(250, 204, 21); StatDist.Font = Enum.Font.Gotham; StatDist.TextSize = 12
-
-local function toggleStats()
-    StatsEnabled = not StatsEnabled
-    if StatsEnabled then
-        StatsBtn.Text = "📊 ปิดหน้าต่างข้อมูล"
-        StatsBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        StatsPanel.Visible = true
-        Status.Text = "เปิดแทร็กข้อมูลศัตรูที่จะล็อคเป้าแล้ว"
-        Status.TextColor3 = Colors.Green
-    else
-        StatsBtn.Text = "📊 ส่องข้อมูลเป้าหมาย (Stats)"
-        StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
-        StatsPanel.Visible = false
-        Status.Text = "ปิดหน้าต่างแทร็กข้อมูล"
-        Status.TextColor3 = Colors.Status
-    end
-end
-StatsBtn.Activated:Connect(toggleStats)
-
--- 8. Tracers ESP 
-local TracersEnabled = false
-local TracerMode = "All" 
-local TracerFolder = Instance.new("Folder")
-TracerFolder.Name = "TracersFolder"
-TracerFolder.Parent = ScreenGui
-
-local function getTracerLine(player)
-    if not tracerLines[player] then
-        local line = Instance.new("Frame")
-        line.Name = player.Name .. "_Tracer"
-        line.AnchorPoint = Vector2.new(0.5, 0.5)
-        line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        line.BorderSizePixel = 0; line.ZIndex = 1; line.Visible = false
-        line.Parent = TracerFolder
-        tracerLines[player] = line
-    end
-    return tracerLines[player]
-end
-
-local function clearTracers()
-    for _, line in pairs(tracerLines) do if line then line:Destroy() end end
-    tracerLines = {}
-end
-
-local function toggleTracers()
-    TracersEnabled = not TracersEnabled
-    if TracersEnabled then
-        TracersBtn.Text = "🧶 ปิดเส้นชี้เป้า"
-        TracersBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เปิดเส้นลากเป้าหาศัตรูแล้ว"
-        Status.TextColor3 = Colors.Green
-    else
-        TracersBtn.Text = "🧶 เปิดเส้นชี้เป้า (Tracers)"
-        TracersBtn.BackgroundColor3 = Color3.fromRGB(249, 115, 22)
-        Status.Text = "ปิดเส้นลากเป้าเรียบร้อย"
-        Status.TextColor3 = Colors.Status
-        clearTracers()
-    end
-end
-TracersBtn.Activated:Connect(toggleTracers)
-
-TracerModeBtn.Activated:Connect(function()
-    if TracerMode == "All" then
-        TracerMode = "Closest"
-        TracerModeBtn.Text = "🧶 โหมดเส้น: คนที่ถูกล็อค (สลับ)"
-        TracerModeBtn.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
-        Status.Text = "เส้นจะลากไปหาคนที่กำลังเล็งอยู่เท่านั้น!"
-    else
-        TracerMode = "All"
-        TracerModeBtn.Text = "🧶 โหมดเส้น: ทุกคน (สลับ)"
-        TracerModeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-        Status.Text = "เส้นจะลากไปหาทุกคนในแมพ!"
-    end
-    Status.TextColor3 = Colors.Green
-end)
-
--- ลูปการแสดงผลร่วมของ Stats & Tracers
-BindConn(RunService.RenderStepped:Connect(function()
-    local displayTarget = nil
-    
-    if hardLockedPlayer and hardLockedPlayer.Character and hardLockedPlayer.Character:FindFirstChild("HumanoidRootPart") and hardLockedPlayer.Character:FindFirstChild("Humanoid") and hardLockedPlayer.Character.Humanoid.Health > 0 then
-        displayTarget = hardLockedPlayer
-    else
-        local shortestDistance = math.huge
-        local mousePos = UserInputService:GetMouseLocation()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-                if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                    local isValidTarget = true
-                    if FOVEnabled and dist > FOVRadius then isValidTarget = false end
-                    
-                    if isValidTarget and dist < shortestDistance then
-                        displayTarget = p
-                        shortestDistance = dist
-                    end
-                end
-            end
-        end
-    end
-    
-    if StatsEnabled then
-        if displayTarget and displayTarget.Character then
-            local hum = displayTarget.Character:FindFirstChild("Humanoid")
-            local tool = displayTarget.Character:FindFirstChildOfClass("Tool")
-            StatName.Text = "👤 ชื่อ: " .. displayTarget.DisplayName
-            if hum then StatHP.Text = "❤️ เลือด: " .. math.floor(hum.Health) .. " / " .. math.floor(hum.MaxHealth) end
-            StatWeapon.Text = "🔫 อาวุธ: " .. (tool and tool.Name or "มือเปล่า")
-            local hrp = displayTarget.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then StatDist.Text = "📏 ระยะห่าง: " .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. " m"
-            else StatDist.Text = "📏 ระยะห่าง: -" end
-        else
-            StatName.Text = "👤 ชื่อ: (ไม่พบเป้าหมาย)"; StatHP.Text = "❤️ เลือด: -"; StatWeapon.Text = "🔫 อาวุธ: -"; StatDist.Text = "📏 ระยะห่าง: -"
-        end
-    end
-
-    if TracersEnabled then
-        for player, line in pairs(tracerLines) do
-            if not player or not player.Parent or not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
-                line:Destroy(); tracerLines[player] = nil
-            end
-        end
-
-        local startPosVector2
-        if StatsEnabled and StatsPanel.Visible then
-            startPosVector2 = Vector2.new(StatsPanel.AbsolutePosition.X + (StatsPanel.AbsoluteSize.X / 2), StatsPanel.AbsolutePosition.Y + 12)
-        else
-            startPosVector2 = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-        end
-
-        for _, p in pairs(Players:GetPlayers()) do
-            local shouldDraw = false
-            if TracerMode == "All" then shouldDraw = true
-            elseif TracerMode == "Closest" and p == displayTarget then shouldDraw = true end
-
-            if shouldDraw and p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                local rootPart = p.Character.HumanoidRootPart
-                local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-                
-                if onScreen then
-                    local line = getTracerLine(p)
-                    local distLine = (startPosVector2 - Vector2.new(pos.X, pos.Y)).Magnitude
-                    local center = (startPosVector2 + Vector2.new(pos.X, pos.Y)) / 2
-                    local angle = math.atan2(pos.Y - startPosVector2.Y, pos.X - startPosVector2.X)
-                    
-                    if AimingPlayers[p] then
-                        line.BackgroundColor3 = Color3.fromRGB(74, 222, 128)
-                        line.ZIndex = 2
+                    local idx = table.find(selectedEggs, eggName)
+                    if idx then
+                        table.remove(selectedEggs, idx)
                     else
-                        line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-                        line.ZIndex = 1
-                    end
-                    
-                    line.Position = UDim2.new(0, center.X, 0, center.Y)
-                    line.Size = UDim2.new(0, distLine, 0, 1.5)
-                    line.Rotation = math.deg(angle)
-                    line.Visible = true
-                else
-                    if tracerLines[p] then tracerLines[p].Visible = false end
-                end
-            else
-                if tracerLines[p] then tracerLines[p].Visible = false end
-            end
-        end
-    end
-end))
-
--- 9. สร้างเสาปีน
-local PoleModeEnabled = false
-local poleMouse = LocalPlayer:GetMouse()
-
-local function togglePoleMode()
-    PoleModeEnabled = not PoleModeEnabled
-    if PoleModeEnabled then
-        CreatePoleBtn.Text = " 🧱 ปิดโหมดสร้างเสา (ลบทิ้ง)"
-        CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เปิดสร้างเสา (ชี้เมาส์ไปที่พื้นแล้วกดปุ่มลัด)"
-        Status.TextColor3 = Colors.Green
-    else
-        CreatePoleBtn.Text = " 🧱 โหมดสร้างเสาปีน"
-        CreatePoleBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-        Status.Text = "ปิดสร้างเสา + เคลียร์เสาทั้งหมดเรียบร้อย"
-        Status.TextColor3 = Colors.Status
-        
-        for _, pole in ipairs(SpawnedPoles) do
-            if pole and pole.Parent then pole:Destroy() end
-        end
-        SpawnedPoles = {}
-    end
-end
-CreatePoleBtn.Activated:Connect(togglePoleMode)
-
--- 10. Delete Mode โหมดซ่อนวัตถุ
-local DeleteModeEnabled = false
-local hoverHighlight = Instance.new("Highlight")
-hoverHighlight.Name = "DeleteHoverHighlight"
-hoverHighlight.FillColor = Color3.fromRGB(255, 0, 0)
-hoverHighlight.OutlineColor = Color3.fromRGB(255, 100, 100)
-hoverHighlight.FillTransparency = 0.5
-hoverHighlight.OutlineTransparency = 0
-hoverHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-hoverHighlight.Parent = SafeGuiParent
-hoverHighlight.Enabled = false 
-
-local deleteRenderConnection = nil
-local currentHoverObject = nil
-local deleteMouse = LocalPlayer:GetMouse()
-
-local function ToggleDeleteMode()
-    DeleteModeEnabled = not DeleteModeEnabled
-    if DeleteModeEnabled then
-        DeleteModeBtn.Text = " 🖱️ ปิดโหมดลบของ"
-        DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "โหมดลบ: เปิด (คลิกเมาส์กลางซ่อนของ)"
-        Status.TextColor3 = Color3.fromRGB(255, 50, 50)
-        hoverHighlight.Enabled = true 
-        
-        deleteRenderConnection = BindConn(RunService.RenderStepped:Connect(function()
-            local target = deleteMouse.Target
-            if target and not target.Locked and not isPlayerCharacter(target) then
-                if currentHoverObject ~= target then
-                    currentHoverObject = target
-                    hoverHighlight.Adornee = currentHoverObject
-                end
-            else
-                currentHoverObject = nil
-                hoverHighlight.Adornee = nil
-            end
-        end))
-    else
-        DeleteModeBtn.Text = " 🖱️ โหมดลบของ"
-        DeleteModeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        Status.Text = "โหมดลบ: ปิด (คืนค่าที่คลิกลบไปแล้ว)"
-        Status.TextColor3 = Colors.Green
-        
-        if deleteRenderConnection then deleteRenderConnection:Disconnect(); deleteRenderConnection = nil end
-        currentHoverObject = nil
-        hoverHighlight.Adornee = nil
-        hoverHighlight.Enabled = false 
-        
-        for _, data in ipairs(ClickDeletedObjects) do
-            if data.obj then
-                pcall(function()
-                    data.obj.Transparency = data.origTransparency
-                    data.obj.CanCollide = data.origCanCollide
-                    if data.origCanQuery ~= nil then data.obj.CanQuery = data.origCanQuery end
-                end)
-            end
-        end
-        ClickDeletedObjects = {} 
-    end
-end
-DeleteModeBtn.Activated:Connect(ToggleDeleteMode)
-
--- 11. Warning System 
-local WarningEnabled = false
-local WarnGui = Instance.new("ScreenGui", SafeGuiParent)
-WarnGui.Name = "AntiAimWarningUI_" .. tostring(math.random(100000, 999999))
-local WarnText = Instance.new("TextLabel", WarnGui)
-WarnText.Size = UDim2.new(1, 0, 0, 100); WarnText.Position = UDim2.new(0, 0, 0.15, 0)
-WarnText.BackgroundTransparency = 1; WarnText.TextColor3 = Color3.fromRGB(255, 50, 50)
-WarnText.TextStrokeColor3 = Color3.new(0, 0, 0); WarnText.TextStrokeTransparency = 0
-WarnText.TextSize = 28; WarnText.Font = Enum.Font.GothamBold; WarnText.Text = ""
-WarnText.Visible = false
-ProtectMyUI(WarnGui)
-_G.UtilityWarningUI = WarnGui
-
-local function toggleWarning()
-    WarningEnabled = not WarningEnabled
-    if WarningEnabled then
-        WarningBtn.Text = "⚠️ ปิดระบบเตือนภัยกระบอกปืน"
-        WarningBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
-        Status.Text = "เปิดเรดาร์ Raycast เช็คทิศทางปืนแล้ว"
-        Status.TextColor3 = Colors.Green
-    else
-        WarningBtn.Text = "⚠️ เตือนภัยกระบอกปืน (Raycast)"
-        WarningBtn.BackgroundColor3 = Color3.fromRGB(202, 138, 4)
-        Status.Text = "ปิดระบบแจ้งเตือนเรดาร์แล้ว"
-        Status.TextColor3 = Colors.Status
-        WarnText.Visible = false
-        AimingPlayers = {}
-    end
-end
-WarningBtn.Activated:Connect(toggleWarning)
-
-BindConn(RunService.RenderStepped:Connect(function()
-    if not WarningEnabled then 
-        AimingPlayers = {}
-        WarnText.Visible = false
-        return 
-    end
-    
-    local currentAimers = {}
-    local firstAimerName = ""
-    
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local myHRP = LocalPlayer.Character.HumanoidRootPart
-        local myPos = myHRP.Position
-        
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local hum = p.Character:FindFirstChild("Humanoid")
-                if hum and hum.Health > 0 then
-                    local enemyChar = p.Character
-                    local tool = enemyChar:FindFirstChildOfClass("Tool")
-                    
-                    local muzzlePos = nil
-                    if tool then
-                        local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-                        if handle then muzzlePos = handle.Position end
-                    end
-                    
-                    if not muzzlePos then
-                        local rightArm = enemyChar:FindFirstChild("Right Arm") or enemyChar:FindFirstChild("RightHand")
-                        muzzlePos = rightArm and rightArm.Position or enemyChar.HumanoidRootPart.Position
-                    end
-                    
-                    local dirToMe = (myPos - muzzlePos)
-                    local distance = dirToMe.Magnitude
-                    
-                    if distance < 600 then 
-                        dirToMe = dirToMe.Unit
-                        local lookPart = enemyChar:FindFirstChild("Head") or enemyChar.HumanoidRootPart
-                        if lookPart then
-                            local lookVector = lookPart.CFrame.LookVector
-                            if lookVector:Dot(dirToMe) > 0.92 then 
-                                currentAimers[p] = true
-                                if firstAimerName == "" then firstAimerName = p.Name end
-                            end
+                        if #selectedEggs < maxSelection then
+                            table.insert(selectedEggs, eggName)
                         end
                     end
+                    
+                    for eName, btn in pairs(eggButtons) do
+                        local currentIdx = table.find(selectedEggs, eName)
+                        if currentIdx then
+                            btn.Text = " [" .. currentIdx .. "] " .. eName
+                            btn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) 
+                        else
+                            btn.Text = "  " .. eName
+                            btn.BackgroundColor3 = originalBtnColors[eName]
+                        end
+                    end
+                    
+                    if #selectedEggs == 0 and isFarming then
+                        isFarming = false
+                        farmBtn.Text = "⚡ AUTO FARM"
+                        farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+                    end
                 end
+            end)
+        end
+    end)
+
+    b.InputChanged:Connect(function(input)
+        if isPressing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            if pressStartPos and (input.Position - pressStartPos).Magnitude > 15 then
+                isPressing = false 
             end
         end
-    end
-    
-    AimingPlayers = currentAimers
-    
-    if firstAimerName ~= "" then
-        WarnText.Text = "⚠️ ระวัง! [" .. firstAimerName .. "] กำลังหันกระบอกปืนเล็งคุณ! ⚠️"; WarnText.Visible = true
-    else 
-        WarnText.Visible = false 
-    end
-end))
+    end)
 
--- =======================================================
--- [Input Handling] จัดการรับปุ่มลัด
--- =======================================================
-BindConn(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == Bindings.Aim then
-        toggleAimbot()
-    elseif input.KeyCode == Bindings.Lock then 
-        if isAimbotting then
-            if hardLockedPlayer then
-                hardLockedPlayer = nil
-                Status.Text = "ปลดล็อคเจาะจง (เล็งตามเมาส์ต่อ)"
-                HardLockBtn.Text = " 🔒 ปุ่มล็อคเจาะจงเป้าหมาย"
-                HardLockBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
-            else
-                if currentTarget then
-                    hardLockedPlayer = currentTarget
-                    Status.Text = "🔒 ล็อคตายตัวที่: " .. hardLockedPlayer.Name
-                    HardLockBtn.Text = " 🔒 ปลดล็อคเป้าหมาย"
-                    HardLockBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-                end
-            end
+    b.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isPressing = false 
         end
-    elseif input.KeyCode == Bindings.Del then
-        ToggleDeleteMode()
-    end
-    
-    if input.KeyCode == Bindings.Pole and PoleModeEnabled then
-        local hit = poleMouse.Hit
-        if hit then
-            local truss = Instance.new("TrussPart")
-            truss.Size = Vector3.new(2, 40, 2); truss.Position = hit.Position + Vector3.new(0, 20, 0) 
-            truss.Anchored = true; truss.BrickColor = BrickColor.new("Bright yellow") 
-            truss.Material = Enum.Material.Neon; truss.Parent = workspace
-            table.insert(SpawnedPoles, truss)
-        end
-    end
-    
-    if input.UserInputType == Enum.UserInputType.MouseButton3 then
-        if DeleteModeEnabled and currentHoverObject then
-            table.insert(ClickDeletedObjects, {
-                obj = currentHoverObject,
-                origTransparency = currentHoverObject.Transparency,
-                origCanCollide = currentHoverObject.CanCollide,
-                origCanQuery = currentHoverObject.CanQuery
-            })
-            currentHoverObject.CanCollide = false
-            currentHoverObject.Transparency = 1
-            pcall(function() currentHoverObject.CanQuery = false end)
-            currentHoverObject = nil
-            hoverHighlight.Adornee = nil
-        end
-    end
-end))
+    end)
+end
 
--- =======================================================
--- [ระบบสั่งการระเบิดตัวเองผ่านปุ่ม UI]
--- =======================================================
-ExitBtn.Activated:Connect(function()
-    if _G.UtilityHubCleanup then
-        _G.UtilityHubCleanup()
+-- ===========================================================
+-- Dual Grab Mode Logic (Toggle)
+-- ===========================================================
+modeBtn.Activated:Connect(function()
+    useFlashTP = not useFlashTP
+    if useFlashTP then
+        modeBtn.Text = "⚡ Flash TP: ON"
+        modeBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    else
+        modeBtn.Text = "🐢 Safe TP: ON"
+        modeBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
     end
 end)
+
+local function grabAndReturn(egg)
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp or not egg or not egg.Parent then return end
+    
+    local targetPart = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+    if not targetPart then return end
+    if not homeCFrame then homeCFrame = findAutoPlotCFrame() end
+    
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    
+    if useFlashTP then
+        local originalPos = homeCFrame or hrp.CFrame
+        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
+        
+        if os.clock() - lastRemoteCall > 0.1 then
+            lastRemoteCall = os.clock()
+            pcall(function()
+                if eggPickupRemote then eggPickupRemote:FireServer(egg) end
+                local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then prompt.HoldDuration = 0 if fireproximityprompt then fireproximityprompt(prompt) end end
+            end)
+        end
+        task.wait(0.05)
+        
+        hrp.CFrame = originalPos
+        pcall(function()
+            if tpPlotRemote then tpPlotRemote:FireServer() end
+            if basketDropRemote then basketDropRemote:FireServer() end
+            if eggPlacedRemote then eggPlacedRemote:FireServer() end
+        end)
+    else
+        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
+        task.wait(0.2)
+        
+        if os.clock() - lastRemoteCall > 0.25 then
+            lastRemoteCall = os.clock()
+            pcall(function()
+                if eggPickupRemote then eggPickupRemote:FireServer(egg) end
+                local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then prompt.HoldDuration = 0 if fireproximityprompt then fireproximityprompt(prompt) end end
+            end)
+        end
+        task.wait(0.25)
+        
+        if homeCFrame then hrp.CFrame = homeCFrame end
+        pcall(function()
+            if tpPlotRemote then tpPlotRemote:FireServer() end
+            if basketDropRemote then basketDropRemote:FireServer() end
+            if eggPlacedRemote then eggPlacedRemote:FireServer() end
+        end)
+    end
+end
+
+-- Button Activations
+tpBtn.Activated:Connect(function()
+    local selectedMatches, _ = scanAndInspect()
+    if #selectedMatches > 0 then grabAndReturn(selectedMatches[1]) end
+end)
+
+tpHvyBtn.Activated:Connect(function()
+    local _, heaviestEgg = scanAndInspect()
+    if heaviestEgg then grabAndReturn(heaviestEgg) end
+end)
+
+homeBtn.Activated:Connect(function()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        homeCFrame = hrp.CFrame
+        homeBtn.Text = "✅ Saved!"
+        task.delay(1.5, function() homeBtn.Text = "🏠 Set Base" end)
+    end
+end)
+
+farmBtn.Activated:Connect(function()
+    if #selectedEggs == 0 then return end
+    isFarming = not isFarming
+    if isFarming then
+        homeCFrame = findAutoPlotCFrame()
+        farmBtn.Text = "⏹ STOP FARM"
+        farmBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+    else
+        farmBtn.Text = "⚡ AUTO FARM"
+        farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    end
+end)
+
+minBtn.Activated:Connect(function()
+    isMinimized = not isMinimized
+    tweenService:Create(mainFrame, TweenInfo.new(0.2), {Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, isMinimized and 36 or 300)}):Play()
+    minBtn.Text = isMinimized and "+" or "—"
+end)
+
+closeBtn.Activated:Connect(function()
+    isFarming = false
+    clearESP()
+    sg:Destroy()
+end)
+
+-- Real-Time Loops
+runService.RenderStepped:Connect(function()
+    local myChar = player.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if myHRP and #activeBillboards > 0 then
+        for _, item in pairs(activeBillboards) do
+            if item.Part and item.Part.Parent and item.Label and item.Label.Parent then
+                local dist = math.floor((myHRP.Position - item.Part.Position).Magnitude)
+                item.Label.Text = string.format("📍 %dm", dist)
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        local timeLeft = 0
+        pcall(function()
+            if eggCycleService then
+                local cycleMod = require(eggCycleService)
+                if cycleMod.SecondsRemaining then timeLeft = math.floor(cycleMod.SecondsRemaining()) end
+            else timeLeft = 480 - (math.floor(os.time()) % 480) end
+        end)
+        countdownLabel.Text = string.format("%02d:%02d", math.floor(timeLeft / 60), timeLeft % 60)
+        secLogs.Text = string.format("• Anti-AFK (20m Timeout): ACTIVE\n• Ban/Kick Remotes: DROPPED\n• Total Intercepted Traps: %d", blockedRemotesCount)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if not isFarming then updateInspectorESP() end
+    end
+end)
+
+local lastQueueIndex = nil
+local hasUnequippedOnEmpty = false -- ตัวจับสถานะสำหรับบังคับมือเปล่า 1 ครั้งตอนไข่หมด
+
+task.spawn(function()
+    while task.wait(0.4) do
+        if isFarming and #selectedEggs > 0 then
+            local targetToFarm, currentQueueIndex = scanForFarmQueue()
+            if targetToFarm then
+                
+                hasUnequippedOnEmpty = false -- รีเซ็ตสถานะเมื่อเจอไข่ในแมพ
+                
+                if lastQueueIndex and currentQueueIndex > lastQueueIndex then
+                    
+                    task.wait(1) -- รอ 1 วิ
+                    
+                    local char = player.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        pcall(function() hum:UnequipTools() end)
+                    end
+                    
+                    task.wait(2) -- รออีก 2 วิ
+                    
+                    lastQueueIndex = currentQueueIndex
+                else
+                    grabAndReturn(targetToFarm)
+                    lastQueueIndex = currentQueueIndex
+                    task.wait(useFlashTP and 0.2 or 0.4)
+                end
+                
+            else
+                -- [เพิ่มใหม่] เงื่อนไขเมื่อไข่ในลิสต์ไม่มีเหลือในแมพแล้ว
+                lastQueueIndex = nil
+                
+                if not hasUnequippedOnEmpty then
+                    local char = player.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        pcall(function() hum:UnequipTools() end)
+                    end
+                    hasUnequippedOnEmpty = true -- สั่งทำแค่ 1 ครั้งแล้วหยุด
+                end
+            end
+        else
+            lastQueueIndex = nil
+            hasUnequippedOnEmpty = false
+        end
+    end
+end)
+
