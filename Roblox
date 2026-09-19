@@ -75,13 +75,41 @@ local eggPlacedRemote = gameRemotes and gameRemotes:FindFirstChild("EggPlaced")
 local basketDropRemote = gameRemotes and gameRemotes:FindFirstChild("BasketDrop")
 local eggCycleService = rs:FindFirstChild("GameServices") and rs.GameServices:FindFirstChild("EggCycle")
 
+-- [อัปเดตระบบ] ข้อมูลไข่ทั้งหมด + รูปภาพ (ตัดไข่เติมออก)
+local eggDataDict = {
+    ["Solaris Egg"]   = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://131016816558781", Short = "Solaris" },
+    ["Cherub Egg"]    = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://78949206711037", Short = "Cherub" },
+    ["Blackhole Egg"] = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://133246489138606", Short = "Blackhole" },
+    ["Galaxy Egg"]    = { Rarity = "Divine", Color = Color3.fromRGB(236, 72, 153), Image = "rbxassetid://124675079216303", Short = "Galaxy" },
+    ["Aurora Egg"]    = { Rarity = "Divine", Color = Color3.fromRGB(236, 72, 153), Image = "rbxassetid://104054291691153", Short = "Aurora" },
+    ["Soul Egg"]      = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://120412681051430", Short = "Soul" },
+    ["Sinister Egg"]  = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://103306547790688", Short = "Sinister" },
+    ["Flaming Egg"]   = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://132736734146055", Short = "Flaming" },
+    ["Dominus Egg"]   = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://79223819657960", Short = "Dominus" },
+    ["Asteroid Egg"]  = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://73970285282697", Short = "Asteroid" },
+    ["Skull Egg"]     = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://82409969049724", Short = "Skull" },
+    ["Crystal Egg"]   = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://115371319949206", Short = "Crystal" },
+    ["Diamond Egg"]   = { Rarity = "Mythic", Color = Color3.fromRGB(251, 146, 60), Image = "rbxassetid://133543115652338", Short = "Diamond" },
+    ["Golden Egg"]    = { Rarity = "Legendary",Color = Color3.fromRGB(56, 189, 248), Image = "rbxassetid://106524193083708", Short = "Golden" },
+    ["Glass Egg"]     = { Rarity = "Legendary",Color = Color3.fromRGB(56, 189, 248), Image = "rbxassetid://128678801950944", Short = "Glass" },
+    ["Ice Egg"]       = { Rarity = "Epic", Color = Color3.fromRGB(168, 85, 247), Image = "rbxassetid://75603581085211", Short = "Ice" },
+    ["Slime Egg"]     = { Rarity = "Epic", Color = Color3.fromRGB(168, 85, 247), Image = "rbxassetid://83864412478531", Short = "Slime" },
+    ["Flower Egg"]    = { Rarity = "Epic", Color = Color3.fromRGB(168, 85, 247), Image = "rbxassetid://72458885548445", Short = "Flower" },
+    ["Mushroom Egg"]  = { Rarity = "Epic", Color = Color3.fromRGB(168, 85, 247), Image = "rbxassetid://139402409078907", Short = "Mushroom" },
+    ["Leaf Egg"]      = { Rarity = "Rare", Color = Color3.fromRGB(34, 197, 94), Image = "rbxassetid://135299344009434", Short = "Leaf" },
+    ["Stone Egg"]     = { Rarity = "Rare", Color = Color3.fromRGB(34, 197, 94), Image = "rbxassetid://121421205914213", Short = "Stone" },
+    ["Easter Egg"]    = { Rarity = "Rare", Color = Color3.fromRGB(34, 197, 94), Image = "rbxassetid://72008656262680", Short = "Easter" },
+    ["Cracked Egg"]   = { Rarity = "Rare", Color = Color3.fromRGB(34, 197, 94), Image = "rbxassetid://77040464450184", Short = "Cracked" },
+    ["Brown Egg"]     = { Rarity = "Common", Color = Color3.fromRGB(156, 163, 175), Image = "rbxassetid://125046526765012", Short = "Brown" },
+    ["White Egg"]     = { Rarity = "Common", Color = Color3.fromRGB(156, 163, 175), Image = "rbxassetid://112885858949987", Short = "White" },
+}
+
 local eggList = {
-    "Cherub Egg", "Blackhole Egg", "Galaxy Egg", "Aurora Egg", 
-    "Soul Egg", "Sinister Egg", "Flaming Egg", "Dominus Egg", 
-    "Asteroid Egg", "Skull Egg", "Crystal Egg", "Diamond Egg", 
-    "Golden Egg", "Glass Egg", "Ice Egg", "Slime Egg", 
-    "Flower Egg", "Mushroom Egg", "Leaf Egg", "Stone Egg", 
-    "Easter Egg", "Cracked Egg", "Brown Egg", "White Egg"
+    "Solaris Egg", "Cherub Egg", "Blackhole Egg", "Galaxy Egg", "Aurora Egg", 
+    "Soul Egg", "Sinister Egg", "Flaming Egg", "Dominus Egg", "Asteroid Egg", 
+    "Skull Egg", "Crystal Egg", "Diamond Egg", "Golden Egg", "Glass Egg", 
+    "Ice Egg", "Slime Egg", "Flower Egg", "Mushroom Egg", "Leaf Egg", 
+    "Stone Egg", "Easter Egg", "Cracked Egg", "Brown Egg", "White Egg"
 }
 
 -- อัพเดทตัวแปรระบบ
@@ -94,7 +122,6 @@ local originalBtnColors = {}
 local isFarming = false
 local isMinimized = false
 local homeCFrame = nil
-local activeHighlights = {}
 local activeBillboards = {}
 local lastRemoteCall = 0
 local useFlashTP = false
@@ -172,7 +199,7 @@ local function enablePotatoMode()
 end
 
 -- -------------------------------------------------------------
--- RESPONSIVE UI CONSTRUCTION
+-- RESPONSIVE UI CONSTRUCTION (ปรับสีเทาอ่อนมองทะลุ Transparency 0.35 - 0.5)
 -- -------------------------------------------------------------
 local sg = Instance.new("ScreenGui")
 sg.Name = "ApexEggHubShield"
@@ -183,7 +210,8 @@ sg.Parent = parentGui
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 520, 0, 300)
 mainFrame.Position = UDim2.new(0.5, -260, 0.5, -150)
-mainFrame.BackgroundColor3 = Color3.fromRGB(13, 15, 20)
+mainFrame.BackgroundColor3 = Color3.fromRGB(60, 68, 85) -- เทาอ่อน
+mainFrame.BackgroundTransparency = 0.35 -- มองทะลุ
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Active = true
@@ -191,14 +219,16 @@ mainFrame.Parent = sg
 
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
 local mainStroke = Instance.new("UIStroke", mainFrame)
-mainStroke.Color = Color3.fromRGB(38, 44, 62)
+mainStroke.Color = Color3.fromRGB(160, 180, 220)
 mainStroke.Thickness = 1.4
+mainStroke.Transparency = 0.3
 
 -- Dragging System
 local dragging, dragInput, dragStart, startPos
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 36)
-header.BackgroundColor3 = Color3.fromRGB(18, 21, 30)
+header.BackgroundColor3 = Color3.fromRGB(75, 85, 105)
+header.BackgroundTransparency = 0.4
 header.BorderSizePixel = 0
 header.Active = true
 header.Parent = mainFrame
@@ -240,9 +270,10 @@ titleLabel.Parent = header
 local minBtn = Instance.new("TextButton")
 minBtn.Size = UDim2.new(0, 24, 0, 24)
 minBtn.Position = UDim2.new(1, -60, 0.5, -12)
-minBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+minBtn.BackgroundColor3 = Color3.fromRGB(90, 105, 130)
+minBtn.BackgroundTransparency = 0.3
 minBtn.Text = "—"
-minBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+minBtn.TextColor3 = Color3.fromRGB(220, 230, 245)
 minBtn.Font = Enum.Font.GothamBold
 minBtn.Parent = header
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 5)
@@ -251,6 +282,7 @@ local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 24, 0, 24)
 closeBtn.Position = UDim2.new(1, -30, 0.5, -12)
 closeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+closeBtn.BackgroundTransparency = 0.3
 closeBtn.Text = "✕"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.Font = Enum.Font.GothamBold
@@ -260,7 +292,8 @@ Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 5)
 local tabNav = Instance.new("Frame")
 tabNav.Size = UDim2.new(1, -16, 0, 30)
 tabNav.Position = UDim2.new(0, 8, 0, 42)
-tabNav.BackgroundColor3 = Color3.fromRGB(19, 23, 33)
+tabNav.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+tabNav.BackgroundTransparency = 0.5
 tabNav.BorderSizePixel = 0
 tabNav.Parent = mainFrame
 Instance.new("UICorner", tabNav).CornerRadius = UDim.new(0, 6)
@@ -277,9 +310,10 @@ local tabButtons = {}
 local function createTabButton(id, titleText)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.31, 0, 0, 24)
-    btn.BackgroundColor3 = (id == "Farm") and Color3.fromRGB(59, 130, 246) or Color3.fromRGB(24, 29, 41)
+    btn.BackgroundColor3 = (id == "Farm") and Color3.fromRGB(59, 130, 246) or Color3.fromRGB(80, 95, 120)
+    btn.BackgroundTransparency = (id == "Farm") and 0.2 or 0.4
     btn.Text = titleText
-    btn.TextColor3 = (id == "Farm") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 160, 185)
+    btn.TextColor3 = (id == "Farm") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 220, 240)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 10
     btn.Parent = tabNav
@@ -307,23 +341,29 @@ tabs["Farm"] = farmPage
 
 local leftPanel = Instance.new("Frame")
 leftPanel.Size = UDim2.new(0.44, 0, 1, -4)
-leftPanel.BackgroundColor3 = Color3.fromRGB(16, 19, 28)
+leftPanel.BackgroundColor3 = Color3.fromRGB(65, 75, 95)
+leftPanel.BackgroundTransparency = 0.5
 leftPanel.Parent = farmPage
 Instance.new("UICorner", leftPanel).CornerRadius = UDim.new(0, 8)
 
+-- [อัปเดต] ใช้ระบบ Grid View โชว์รูปภาพ
 local eggScroll = Instance.new("ScrollingFrame")
-eggScroll.Size = UDim2.new(1, -6, 1, -6)
-eggScroll.Position = UDim2.new(0, 3, 0, 3)
+eggScroll.Size = UDim2.new(1, -12, 1, -12)
+eggScroll.Position = UDim2.new(0, 6, 0, 6)
 eggScroll.BackgroundTransparency = 1
 eggScroll.BorderSizePixel = 0
 eggScroll.ScrollBarThickness = 3
 eggScroll.ScrollBarImageColor3 = Color3.fromRGB(59, 130, 246)
 eggScroll.Parent = leftPanel
-local eggListLayout = Instance.new("UIListLayout", eggScroll)
-eggListLayout.Padding = UDim.new(0, 3)
 
-eggListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    eggScroll.CanvasSize = UDim2.new(0, 0, 0, eggListLayout.AbsoluteContentSize.Y + 6)
+local eggGridLayout = Instance.new("UIGridLayout", eggScroll)
+eggGridLayout.CellSize = UDim2.new(0, 66, 0, 76)
+eggGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
+eggGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+eggGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+eggGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    eggScroll.CanvasSize = UDim2.new(0, 0, 0, eggGridLayout.AbsoluteContentSize.Y + 12)
 end)
 
 local rightPanel = Instance.new("Frame")
@@ -334,10 +374,11 @@ rightPanel.Parent = farmPage
 
 local statusCard = Instance.new("Frame")
 statusCard.Size = UDim2.new(1, 0, 0, 42)
-statusCard.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+statusCard.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+statusCard.BackgroundTransparency = 0.4
 statusCard.Parent = rightPanel
 Instance.new("UICorner", statusCard).CornerRadius = UDim.new(0, 6)
-Instance.new("UIStroke", statusCard).Color = Color3.fromRGB(36, 44, 63)
+Instance.new("UIStroke", statusCard).Color = Color3.fromRGB(130, 150, 190)
 
 local targetLabel = Instance.new("TextLabel")
 targetLabel.Size = UDim2.new(1, -12, 0, 16)
@@ -357,7 +398,7 @@ infoLabel.Position = UDim2.new(0, 6, 0, 20)
 infoLabel.BackgroundTransparency = 1
 infoLabel.Text = "Status: Select an egg on the left..."
 infoLabel.RichText = true
-infoLabel.TextColor3 = Color3.fromRGB(140, 150, 175)
+infoLabel.TextColor3 = Color3.fromRGB(200, 210, 230)
 infoLabel.Font = Enum.Font.Gotham
 infoLabel.TextSize = 9
 infoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -366,7 +407,8 @@ infoLabel.Parent = statusCard
 local heavyCard = Instance.new("Frame")
 heavyCard.Size = UDim2.new(1, 0, 0, 42)
 heavyCard.Position = UDim2.new(0, 0, 0, 46)
-heavyCard.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+heavyCard.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+heavyCard.BackgroundTransparency = 0.4
 heavyCard.Parent = rightPanel
 Instance.new("UICorner", heavyCard).CornerRadius = UDim.new(0, 6)
 local heavyStroke = Instance.new("UIStroke", heavyCard)
@@ -391,7 +433,7 @@ heavyInfo.Position = UDim2.new(0, 6, 0, 20)
 heavyInfo.BackgroundTransparency = 1
 heavyInfo.Text = "Weight: - | Dist: -"
 heavyInfo.RichText = true
-heavyInfo.TextColor3 = Color3.fromRGB(140, 150, 175)
+heavyInfo.TextColor3 = Color3.fromRGB(200, 210, 230)
 heavyInfo.Font = Enum.Font.Gotham
 heavyInfo.TextSize = 9
 heavyInfo.TextXAlignment = Enum.TextXAlignment.Left
@@ -409,7 +451,7 @@ btnListLayout.Padding = UDim.new(0, 6)
 
 local function createBtnRow()
     local r = Instance.new("Frame")
-    r.Size = UDim2.new(1, 0, 0, 28)
+    r.Size = UDim2.new(1, 0, 0, 24)
     r.BackgroundTransparency = 1
     r.Parent = btnHolder
     return r
@@ -420,6 +462,7 @@ local function createActionBtn(text, color, parent, xPos, widthStr)
     btn.Size = UDim2.new(widthStr, 0, 1, 0)
     btn.Position = UDim2.new(xPos, 0, 0, 0)
     btn.BackgroundColor3 = color
+    btn.BackgroundTransparency = 0.3
     btn.Text = text
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
@@ -430,12 +473,18 @@ local function createActionBtn(text, color, parent, xPos, widthStr)
     return btn
 end
 
+-- [เพิ่มระบบถอดจิต]
+local viewTargetBtn, viewHvyBtn
+local row0 = createBtnRow()
+viewTargetBtn = createActionBtn("👁️ View Target", Color3.fromRGB(139, 92, 246), row0, 0, 0.48)
+viewHvyBtn = createActionBtn("👁️ View Hvy", Color3.fromRGB(139, 92, 246), row0, 0.52, 0.48)
+
 local row1 = createBtnRow()
 local tpBtn = createActionBtn("🚀 TP Target", Color3.fromRGB(59, 130, 246), row1, 0, 0.48)
 local tpHvyBtn = createActionBtn("👑 TP Heaviest", Color3.fromRGB(217, 119, 6), row1, 0.52, 0.48)
 
 local row2 = createBtnRow()
-local homeBtn = createActionBtn("🏠 Set Base", Color3.fromRGB(30, 36, 52), row2, 0, 0.48)
+local homeBtn = createActionBtn("🏠 Set Base", Color3.fromRGB(80, 95, 120), row2, 0, 0.48)
 local modeBtn = createActionBtn("🐢 Safe TP: ON", Color3.fromRGB(59, 130, 246), row2, 0.52, 0.48)
 
 local row3 = createBtnRow()
@@ -452,10 +501,11 @@ tabs["Security"] = secPage
 
 local secLeft = Instance.new("Frame")
 secLeft.Size = UDim2.new(0.60, 0, 1, -4)
-secLeft.BackgroundColor3 = Color3.fromRGB(18, 22, 31)
+secLeft.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+secLeft.BackgroundTransparency = 0.4
 secLeft.Parent = secPage
 Instance.new("UICorner", secLeft).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", secLeft).Color = Color3.fromRGB(36, 44, 63)
+Instance.new("UIStroke", secLeft).Color = Color3.fromRGB(130, 150, 190)
 
 local secTitle = Instance.new("TextLabel")
 secTitle.Size = UDim2.new(1, -16, 0, 20)
@@ -473,7 +523,7 @@ secLogs.Size = UDim2.new(1, -16, 1, -30)
 secLogs.Position = UDim2.new(0, 8, 0, 26)
 secLogs.BackgroundTransparency = 1
 secLogs.Text = string.format("• Anti-AFK (20m Timeout): ACTIVE\n• Ban/Kick Remotes: DROPPED\n• Total Intercepted Traps: %d", blockedRemotesCount)
-secLogs.TextColor3 = Color3.fromRGB(190, 200, 225)
+secLogs.TextColor3 = Color3.fromRGB(210, 220, 240)
 secLogs.Font = Enum.Font.Gotham
 secLogs.TextSize = 10
 secLogs.TextXAlignment = Enum.TextXAlignment.Left
@@ -483,10 +533,11 @@ secLogs.Parent = secLeft
 local secRight = Instance.new("Frame")
 secRight.Size = UDim2.new(0.38, 0, 1, -4)
 secRight.Position = UDim2.new(0.62, 0, 0, 0)
-secRight.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+secRight.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+secRight.BackgroundTransparency = 0.4
 secRight.Parent = secPage
 Instance.new("UICorner", secRight).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", secRight).Color = Color3.fromRGB(36, 44, 63)
+Instance.new("UIStroke", secRight).Color = Color3.fromRGB(130, 150, 190)
 
 local hopTitle = Instance.new("TextLabel")
 hopTitle.Size = UDim2.new(1, -8, 0, 18)
@@ -502,6 +553,7 @@ local hopBtn = Instance.new("TextButton")
 hopBtn.Size = UDim2.new(1, -16, 0, 32)
 hopBtn.Position = UDim2.new(0, 8, 0, 26)
 hopBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+hopBtn.BackgroundTransparency = 0.3
 hopBtn.Text = "🚀 Hop Server\n(1 Player)"
 hopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 hopBtn.Font = Enum.Font.GothamBold
@@ -519,6 +571,7 @@ local fpsBtn = Instance.new("TextButton")
 fpsBtn.Size = UDim2.new(1, -16, 0, 32)
 fpsBtn.Position = UDim2.new(0, 8, 0, 64)
 fpsBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+fpsBtn.BackgroundTransparency = 0.3
 fpsBtn.Text = "🥔 Boost FPS\n(Clear Trees/Gfx)"
 fpsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 fpsBtn.Font = Enum.Font.GothamBold
@@ -533,6 +586,31 @@ fpsBtn.Activated:Connect(function()
     enablePotatoMode()
 end)
 
+-- [อัปเดต] ระบบ Rejoin เข้าเซิร์ฟเดิม
+local rejoinBtn = Instance.new("TextButton")
+rejoinBtn.Size = UDim2.new(1, -16, 0, 32)
+rejoinBtn.Position = UDim2.new(0, 8, 0, 102)
+rejoinBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+rejoinBtn.BackgroundTransparency = 0.3
+rejoinBtn.Text = "🔄 Rejoin Server"
+rejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+rejoinBtn.Font = Enum.Font.GothamBold
+rejoinBtn.TextSize = 9
+rejoinBtn.AutoButtonColor = true
+rejoinBtn.Parent = secRight
+Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 6)
+
+rejoinBtn.Activated:Connect(function()
+    rejoinBtn.Text = "⏳ Rejoining..."
+    if #game:GetService("Players"):GetPlayers() <= 1 then
+        player:Kick("Rejoining...")
+        task.wait(0.5)
+        teleportService:Teleport(game.PlaceId, player)
+    else
+        teleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+    end
+end)
+
 local weatherPage = Instance.new("Frame")
 weatherPage.Size = UDim2.new(1, 0, 1, 0)
 weatherPage.BackgroundTransparency = 1
@@ -542,7 +620,8 @@ tabs["Weather"] = weatherPage
 
 local wLeft = Instance.new("Frame")
 wLeft.Size = UDim2.new(0.48, 0, 1, -4)
-wLeft.BackgroundColor3 = Color3.fromRGB(21, 26, 37)
+wLeft.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+wLeft.BackgroundTransparency = 0.4
 wLeft.Parent = weatherPage
 Instance.new("UICorner", wLeft).CornerRadius = UDim.new(0, 8)
 
@@ -569,7 +648,8 @@ countdownLabel.Parent = wLeft
 local wRight = Instance.new("Frame")
 wRight.Size = UDim2.new(0.50, 0, 1, -4)
 wRight.Position = UDim2.new(0.50, 0, 0, 0)
-wRight.BackgroundColor3 = Color3.fromRGB(18, 22, 31)
+wRight.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
+wRight.BackgroundTransparency = 0.4
 wRight.Parent = weatherPage
 Instance.new("UICorner", wRight).CornerRadius = UDim.new(0, 8)
 
@@ -589,10 +669,12 @@ local function switchTab(tabId)
     for id, btn in pairs(tabButtons) do
         if id == tabId then
             btn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+            btn.BackgroundTransparency = 0.2
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         else
-            btn.BackgroundColor3 = Color3.fromRGB(24, 29, 41)
-            btn.TextColor3 = Color3.fromRGB(150, 160, 185)
+            btn.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
+            btn.BackgroundTransparency = 0.4
+            btn.TextColor3 = Color3.fromRGB(210, 220, 240)
         end
     end
 end
@@ -642,7 +724,8 @@ uis.InputChanged:Connect(function(input)
         local newHeight = math.clamp(resizeStartSize.Y + delta.Y, 240, 450)
         mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
         
-        local btnHeight = math.clamp((newHeight - 210) / 3, 24, 40)
+        local btnHeight = math.clamp((newHeight - 210) / 4, 20, 35)
+        row0.Size = UDim2.new(1, 0, 0, btnHeight)
         row1.Size = UDim2.new(1, 0, 0, btnHeight)
         row2.Size = UDim2.new(1, 0, 0, btnHeight)
         row3.Size = UDim2.new(1, 0, 0, btnHeight + 4)
@@ -650,7 +733,7 @@ uis.InputChanged:Connect(function(input)
 end)
 
 -- -------------------------------------------------------------
--- Inspector & Parse
+-- Inspector & Parse (เปลี่ยนเป็น Text ล้วน ไม่มี Frame / กล่องหลัง)
 -- -------------------------------------------------------------
 local function findAutoPlotCFrame()
     local char = player.Character
@@ -667,14 +750,9 @@ local function findAutoPlotCFrame()
 end
 
 local function getRarityInfo(eggName)
-    local idx = 99
-    for i, name in ipairs(eggList) do
-        if string.lower(name) == string.lower(eggName) then idx = i break end
-    end
-    if idx <= 4 then return Color3.fromRGB(192, 132, 252), "Ethereal/Godly"
-    elseif idx <= 10 then return Color3.fromRGB(251, 146, 60), "Mythic"
-    elseif idx <= 16 then return Color3.fromRGB(56, 189, 248), "Legendary"
-    else return Color3.fromRGB(156, 163, 175), "Common" end
+    local data = eggDataDict[eggName]
+    if data then return data.Color, data.Rarity end
+    return Color3.fromRGB(156, 163, 175), "Common"
 end
 
 local function isWildEgg(item)
@@ -729,105 +807,69 @@ end
 
 local function getFormattedWeight(egg)
     local w = parseEggWeight(egg)
-    if w > 0 then return string.format("%.1f kg", w) else return "?? kg (Hidden)" end
+    if w > 0 then return string.format("%.1f กิโลกรัม", w) else return "?? กิโลกรัม" end
 end
 
 local function clearESP()
     espFolder:ClearAllChildren()
-    for _, hl in pairs(activeHighlights) do if hl then hl:Destroy() end end
-    activeHighlights = {}
     activeBillboards = {}
 end
 
-local function createDetailedESP(egg, part, isHeaviest)
+-- ฟังก์ชันที่ปรับเปลี่ยน: นำตัวกล่อง GUI ออก แล้วโชว์ข้อความเปล่าๆ แทน (Text Only)
+local function createTextESPOnly(egg, part, isHeaviest)
     local themeColor, tierName = getRarityInfo(egg.Name)
     if isHeaviest then themeColor = Color3.fromRGB(234, 179, 8) end
     
-    local hl = Instance.new("Highlight")
-    hl.Adornee = egg
-    hl.FillColor = themeColor
-    hl.OutlineColor = isHeaviest and Color3.fromRGB(255, 230, 0) or Color3.fromRGB(255, 255, 255)
-    hl.FillTransparency = 0.4
-    hl.OutlineTransparency = 0.1
-    hl.Parent = espFolder
-    table.insert(activeHighlights, hl)
-    
     local bg = Instance.new("BillboardGui")
     bg.Adornee = part
-    bg.Size = UDim2.new(0, 160, 0, 56)
+    bg.Size = UDim2.new(0, 200, 0, 45)
     bg.AlwaysOnTop = true
-    bg.StudsOffset = Vector3.new(0, 2.8, 0)
+    bg.StudsOffset = Vector3.new(0, 2.5, 0)
     bg.Parent = espFolder
     
-    local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, 0, 1, 0)
-    card.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
-    card.BackgroundTransparency = 0.12
-    card.BorderSizePixel = 0
-    card.Parent = bg
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
-    local stroke = Instance.new("UIStroke", card)
-    stroke.Color = themeColor
-    stroke.Thickness = isHeaviest and 1.8 or 1.2
-    
-    local titleText = (isHeaviest and "👑 [HEAVIEST] " or "✨ ") .. egg.Name
+    -- ส่วนแสดงชื่อและระดับไข่ (Text เท่านั้น ไม่มีกรอบหลัง)
     local nameLbl = Instance.new("TextLabel")
-    nameLbl.Size = UDim2.new(1, -8, 0, 18)
-    nameLbl.Position = UDim2.new(0, 4, 0, 2)
+    nameLbl.Size = UDim2.new(1, 0, 0, 15)
     nameLbl.BackgroundTransparency = 1
-    nameLbl.TextColor3 = isHeaviest and Color3.fromRGB(255, 220, 50) or Color3.fromRGB(255, 255, 255)
-    nameLbl.Text = titleText
+    nameLbl.TextColor3 = isHeaviest and Color3.fromRGB(255, 220, 50) or themeColor
+    nameLbl.TextStrokeTransparency = 0.2 -- มีขอบเพื่อให้มองเห็นชัดเวลากลืนกับฉากหลัง
+    nameLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLbl.Text = (isHeaviest and "👑 " or "✨ ") .. egg.Name .. " [" .. tierName .. "]"
     nameLbl.Font = Enum.Font.GothamBold
-    nameLbl.TextSize = 10
-    nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-    nameLbl.Parent = card
+    nameLbl.TextSize = 12
+    nameLbl.Parent = bg
     
-    local tierLbl = Instance.new("TextLabel")
-    tierLbl.Size = UDim2.new(1, -8, 0, 12)
-    tierLbl.Position = UDim2.new(0, 4, 0, 18)
-    tierLbl.BackgroundTransparency = 1
-    tierLbl.TextColor3 = themeColor
-    tierLbl.Text = "Tier: " .. tierName
-    tierLbl.Font = Enum.Font.GothamBold
-    tierLbl.TextSize = 8
-    tierLbl.TextXAlignment = Enum.TextXAlignment.Left
-    tierLbl.Parent = card
+    -- ส่วนแสดงน้ำหนัก
+    local weightLbl = Instance.new("TextLabel")
+    weightLbl.Size = UDim2.new(1, 0, 0, 15)
+    weightLbl.Position = UDim2.new(0, 0, 0, 15)
+    weightLbl.BackgroundTransparency = 1
+    weightLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+    weightLbl.TextStrokeTransparency = 0.2
+    weightLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    weightLbl.Text = "⚖️ " .. getFormattedWeight(egg)
+    weightLbl.Font = Enum.Font.GothamBold
+    weightLbl.TextSize = 11
+    weightLbl.Parent = bg
     
-    local tagHolder = Instance.new("Frame")
-    tagHolder.Size = UDim2.new(1, -8, 0, 18)
-    tagHolder.Position = UDim2.new(0, 4, 0, 32)
-    tagHolder.BackgroundTransparency = 1
-    tagHolder.Parent = card
-    local hLayout = Instance.new("UIListLayout", tagHolder)
-    hLayout.FillDirection = Enum.FillDirection.Horizontal
-    hLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    hLayout.Padding = UDim.new(0, 4)
+    -- ส่วนแสดงระยะทาง (ตัวนี้จะอัปเดตแบบ Real-time ตลอด)
+    local distLbl = Instance.new("TextLabel")
+    distLbl.Size = UDim2.new(1, 0, 0, 15)
+    distLbl.Position = UDim2.new(0, 0, 0, 30)
+    distLbl.BackgroundTransparency = 1
+    distLbl.TextColor3 = Color3.fromRGB(0, 229, 255)
+    distLbl.TextStrokeTransparency = 0.2
+    distLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    distLbl.Text = "📍 ..."
+    distLbl.Font = Enum.Font.GothamBold
+    distLbl.TextSize = 11
+    distLbl.Parent = bg
     
-    local wTag = Instance.new("TextLabel")
-    wTag.Size = UDim2.new(0.48, 0, 1, 0)
-    wTag.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
-    wTag.TextColor3 = Color3.fromRGB(255, 215, 0)
-    wTag.Font = Enum.Font.GothamBold
-    wTag.TextSize = 8
-    wTag.Text = "⚖️ " .. getFormattedWeight(egg)
-    wTag.Parent = tagHolder
-    Instance.new("UICorner", wTag).CornerRadius = UDim.new(0, 4)
-    
-    local dTag = Instance.new("TextLabel")
-    dTag.Size = UDim2.new(0.48, 0, 1, 0)
-    dTag.BackgroundColor3 = Color3.fromRGB(20, 26, 38)
-    dTag.TextColor3 = Color3.fromRGB(0, 229, 255)
-    dTag.Font = Enum.Font.GothamBold
-    dTag.TextSize = 8
-    dTag.Text = "📍 ..."
-    dTag.Parent = tagHolder
-    Instance.new("UICorner", dTag).CornerRadius = UDim.new(0, 4)
-    
-    table.insert(activeBillboards, {Label = dTag, Part = part})
+    table.insert(activeBillboards, {Label = distLbl, Part = part})
 end
 
 -- ==========================================
--- 1. ฟังก์ชันค้นหาสำหรับโชว์ ESP / ข้อมูล (อิงตาม currentTargetEgg)
+-- 1. ฟังก์ชันค้นหาสำหรับโชว์ ESP ข้อความ / ข้อมูล
 -- ==========================================
 local function scanAndInspect()
     local selectedMatches = {}
@@ -858,9 +900,6 @@ local function scanAndInspect()
     return selectedMatches, heaviestEgg
 end
 
--- ==========================================
--- 2. ฟังก์ชันค้นหาเฉพาะระบบ Auto Farm (อิงตาม selectedEggs Queue)
--- ==========================================
 local function scanForFarmQueue()
     local eggsByName = {}
     for _, item in pairs(workspace:GetDescendants()) do
@@ -875,7 +914,6 @@ local function scanForFarmQueue()
         end
     end
     
-    -- เรียงตามคิวใบที่ 1 ถึง 50 หาเจอใบไหนก่อนให้ส่งกลับไปฟาร์ม
     for index, queueName in ipairs(selectedEggs) do
         if eggsByName[queueName] and #eggsByName[queueName] > 0 then
             return eggsByName[queueName][1], index
@@ -896,7 +934,7 @@ local function updateInspectorESP()
         local dist = (myHRP and p) and math.floor((myHRP.Position - p.Position).Magnitude) or 0
         heavyTitle.Text = string.format("👑 HEAVIEST: <font color=\"#EAB308\"><b>%s</b></font>", heaviestEgg.Name)
         heavyInfo.Text = string.format("W: <font color=\"#F59E0B\"><b>%s</b></font> | Dist: <b>%dm</b>", getFormattedWeight(heaviestEgg), dist)
-        if p then createDetailedESP(heaviestEgg, p, true) end
+        if p then createTextESPOnly(heaviestEgg, p, true) end
     else
         heavyTitle.Text = "👑 HEAVIEST: <font color=\"#EF4444\">Not Found</font>"
         heavyInfo.Text = "Weight: - | Dist: -"
@@ -911,7 +949,7 @@ local function updateInspectorESP()
                 if p then
                     local d = myHRP and math.floor((myHRP.Position - p.Position).Magnitude) or 0
                     if d < nearestDist then nearestDist = d bestMatch = egg end
-                    if egg ~= heaviestEgg then createDetailedESP(egg, p, false) end
+                    if egg ~= heaviestEgg then createTextESPOnly(egg, p, false) end
                 end
             end
             infoLabel.Text = string.format("Found: <font color=\"#10B981\"><b>%d</b></font> | Nearest: <b>%dm</b> | W: <b>%s</b>", #selectedMatches, nearestDist, getFormattedWeight(bestMatch))
@@ -922,41 +960,67 @@ local function updateInspectorESP()
 end
 
 -- ==========================================
--- ปุ่มกด (แยก Click เดี่ยว และ กดค้าง 3 วิ)
+-- ปุ่มไข่ (รูปภาพ + แบดจ์บอกคิว)
 -- ==========================================
 for i, eggName in ipairs(eggList) do
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -4, 0, 24)
+    local data = eggDataDict[eggName] or { Color = Color3.fromRGB(156, 163, 175), Short = eggName, Image = "" }
     
-    local origColor
-    if i <= 4 then origColor = Color3.fromRGB(110, 30, 150)
-    elseif i <= 10 then origColor = Color3.fromRGB(160, 60, 10)
-    else origColor = Color3.fromRGB(26, 32, 45) end
-    
-    b.BackgroundColor3 = origColor
-    b.Text = "  " .. eggName
-    b.TextColor3 = Color3.fromRGB(240, 245, 255)
-    b.Font = Enum.Font.GothamSemibold
-    b.TextSize = 10
-    b.TextXAlignment = Enum.TextXAlignment.Left
+    local b = Instance.new("ImageButton")
+    b.Size = UDim2.new(0, 66, 0, 76)
+    b.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
+    b.BackgroundTransparency = 0.4
+    b.LayoutOrder = i
     b.AutoButtonColor = true
     b.Parent = eggScroll
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
     
-    eggButtons[eggName] = b
-    originalBtnColors[eggName] = origColor
+    local stroke = Instance.new("UIStroke", b)
+    stroke.Color = data.Color
+    stroke.Thickness = 1.2
+    
+    local img = Instance.new("ImageLabel", b)
+    img.Size = UDim2.new(1, -12, 1, -26)
+    img.Position = UDim2.new(0, 6, 0, 4)
+    img.BackgroundTransparency = 1
+    img.Image = data.Image
+    img.ScaleType = Enum.ScaleType.Fit
+    
+    local nameLbl = Instance.new("TextLabel", b)
+    nameLbl.Size = UDim2.new(1, -4, 0, 16)
+    nameLbl.Position = UDim2.new(0, 2, 1, -18)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.Text = data.Short
+    nameLbl.TextColor3 = data.Color
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 10
+    nameLbl.TextScaled = true
+    
+    local badge = Instance.new("Frame", b)
+    badge.Size = UDim2.new(0, 18, 0, 18)
+    badge.Position = UDim2.new(1, -12, 0, -6)
+    badge.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    badge.Visible = false
+    Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+    
+    local queueTxt = Instance.new("TextLabel", badge)
+    queueTxt.Size = UDim2.new(1, 0, 1, 0)
+    queueTxt.BackgroundTransparency = 1
+    queueTxt.Text = "1"
+    queueTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+    queueTxt.Font = Enum.Font.GothamBold
+    queueTxt.TextSize = 10
+    
+    eggButtons[eggName] = { Button = b, Stroke = stroke, Badge = badge, QueueTxt = queueTxt, BaseColor = data.Color }
     
     local pressStartPos = nil
     local isPressing = false
 
-    -- [คลิกธรรมดา] ตั้งเป้าหมาย Target ดูค่าพลัง/วาร์ปไปหา
     b.Activated:Connect(function()
         currentTargetEgg = eggName
-        targetLabel.Text = "🎯 TARGET: <font color=\"#60A5FA\"><b>" .. currentTargetEgg .. "</b></font>"
+        targetLabel.Text = "🎯 TARGET: <font color=\"#60A5FA\"><b>" .. data.Short .. "</b></font>"
         updateInspectorESP()
     end)
 
-    -- [กดค้าง] เริ่มจับเวลา 3 วิ
     b.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             isPressing = true
@@ -965,24 +1029,26 @@ for i, eggName in ipairs(eggList) do
             task.delay(3, function()
                 if isPressing then
                     isPressing = false 
-                    
                     local idx = table.find(selectedEggs, eggName)
-                    if idx then
-                        table.remove(selectedEggs, idx)
-                    else
-                        if #selectedEggs < maxSelection then
-                            table.insert(selectedEggs, eggName)
-                        end
+                    if idx then table.remove(selectedEggs, idx) else
+                        if #selectedEggs < maxSelection then table.insert(selectedEggs, eggName) end
                     end
                     
-                    for eName, btn in pairs(eggButtons) do
+                    for eName, btnObj in pairs(eggButtons) do
                         local currentIdx = table.find(selectedEggs, eName)
                         if currentIdx then
-                            btn.Text = " [" .. currentIdx .. "] " .. eName
-                            btn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) 
+                            btnObj.QueueTxt.Text = tostring(currentIdx)
+                            btnObj.Badge.Visible = true
+                            btnObj.Stroke.Color = Color3.fromRGB(16, 185, 129)
+                            btnObj.Stroke.Thickness = 2.5
+                            btnObj.Button.BackgroundColor3 = Color3.fromRGB(20, 36, 30)
+                            btnObj.Button.BackgroundTransparency = 0.2
                         else
-                            btn.Text = "  " .. eName
-                            btn.BackgroundColor3 = originalBtnColors[eName]
+                            btnObj.Badge.Visible = false
+                            btnObj.Stroke.Color = btnObj.BaseColor
+                            btnObj.Stroke.Thickness = 1.2
+                            btnObj.Button.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
+                            btnObj.Button.BackgroundTransparency = 0.4
                         end
                     end
                     
@@ -998,9 +1064,7 @@ for i, eggName in ipairs(eggList) do
 
     b.InputChanged:Connect(function(input)
         if isPressing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            if pressStartPos and (input.Position - pressStartPos).Magnitude > 15 then
-                isPressing = false 
-            end
+            if pressStartPos and (input.Position - pressStartPos).Magnitude > 15 then isPressing = false end
         end
     end)
 
@@ -1012,7 +1076,59 @@ for i, eggName in ipairs(eggList) do
 end
 
 -- ===========================================================
--- Dual Grab Mode Logic (Toggle)
+-- [อัปเดตระบบ] ถอดจิต (Spectate)
+-- ===========================================================
+local isSpectating = false
+local spectateConn = nil
+
+local function stopSpectating()
+    isSpectating = false
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        workspace.CurrentCamera.CameraSubject = char.Humanoid
+    end
+    if spectateConn then spectateConn:Disconnect(); spectateConn = nil end
+    viewTargetBtn.Text = "👁️ View Target" 
+    viewTargetBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    viewHvyBtn.Text = "👁️ View Hvy" 
+    viewHvyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+end
+
+local function toggleSpectate(egg, activeBtn)
+    if isSpectating then
+        stopSpectating()
+        return
+    end
+    
+    if not egg or not egg.Parent then return end
+    local targetPart = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+    if targetPart then
+        isSpectating = true
+        activeBtn.Text = "🔙 Stop View"
+        activeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+        spectateConn = runService.RenderStepped:Connect(function()
+            if not targetPart or not targetPart.Parent then 
+                stopSpectating() return 
+            end
+            workspace.CurrentCamera.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 6, 8), targetPart.Position)
+        end)
+    end
+end
+
+viewTargetBtn.Activated:Connect(function()
+    local selectedMatches, _ = scanAndInspect()
+    if #selectedMatches > 0 or isSpectating then toggleSpectate(selectedMatches[1], viewTargetBtn) end
+end)
+
+viewHvyBtn.Activated:Connect(function()
+    local _, heaviestEgg = scanAndInspect()
+    if heaviestEgg or isSpectating then toggleSpectate(heaviestEgg, viewHvyBtn) end
+end)
+
+-- ===========================================================
+-- โค้ดดึงไข่เดิมของคุณ (ไม่แตะต้อง)
 -- ===========================================================
 modeBtn.Activated:Connect(function()
     useFlashTP = not useFlashTP
@@ -1120,6 +1236,7 @@ end)
 
 closeBtn.Activated:Connect(function()
     isFarming = false
+    if isSpectating then stopSpectating() end
     clearESP()
     sg:Destroy()
 end)
@@ -1159,7 +1276,7 @@ task.spawn(function()
 end)
 
 local lastQueueIndex = nil
-local hasUnequippedOnEmpty = false -- ตัวจับสถานะสำหรับบังคับมือเปล่า 1 ครั้งตอนไข่หมด
+local hasUnequippedOnEmpty = false 
 
 task.spawn(function()
     while task.wait(0.4) do
@@ -1167,20 +1284,16 @@ task.spawn(function()
             local targetToFarm, currentQueueIndex = scanForFarmQueue()
             if targetToFarm then
                 
-                hasUnequippedOnEmpty = false -- รีเซ็ตสถานะเมื่อเจอไข่ในแมพ
+                hasUnequippedOnEmpty = false 
                 
                 if lastQueueIndex and currentQueueIndex > lastQueueIndex then
-                    
-                    task.wait(1) -- รอ 1 วิ
-                    
+                    task.wait(1) 
                     local char = player.Character
                     local hum = char and char:FindFirstChildOfClass("Humanoid")
                     if hum then
                         pcall(function() hum:UnequipTools() end)
                     end
-                    
-                    task.wait(2) -- รออีก 2 วิ
-                    
+                    task.wait(2) 
                     lastQueueIndex = currentQueueIndex
                 else
                     grabAndReturn(targetToFarm)
@@ -1189,7 +1302,6 @@ task.spawn(function()
                 end
                 
             else
-                -- [เพิ่มใหม่] เงื่อนไขเมื่อไข่ในลิสต์ไม่มีเหลือในแมพแล้ว
                 lastQueueIndex = nil
                 
                 if not hasUnequippedOnEmpty then
@@ -1198,7 +1310,7 @@ task.spawn(function()
                     if hum then
                         pcall(function() hum:UnequipTools() end)
                     end
-                    hasUnequippedOnEmpty = true -- สั่งทำแค่ 1 ครั้งแล้วหยุด
+                    hasUnequippedOnEmpty = true 
                 end
             end
         else
@@ -1207,4 +1319,3 @@ task.spawn(function()
         end
     end
 end)
-
