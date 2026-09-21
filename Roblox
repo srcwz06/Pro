@@ -815,7 +815,6 @@ local function clearESP()
     activeBillboards = {}
 end
 
--- ฟังก์ชันที่ปรับเปลี่ยน: นำตัวกล่อง GUI ออก แล้วโชว์ข้อความเปล่าๆ แทน (Text Only)
 local function createTextESPOnly(egg, part, isHeaviest)
     local themeColor, tierName = getRarityInfo(egg.Name)
     if isHeaviest then themeColor = Color3.fromRGB(234, 179, 8) end
@@ -827,19 +826,17 @@ local function createTextESPOnly(egg, part, isHeaviest)
     bg.StudsOffset = Vector3.new(0, 2.5, 0)
     bg.Parent = espFolder
     
-    -- ส่วนแสดงชื่อและระดับไข่ (Text เท่านั้น ไม่มีกรอบหลัง)
     local nameLbl = Instance.new("TextLabel")
     nameLbl.Size = UDim2.new(1, 0, 0, 15)
     nameLbl.BackgroundTransparency = 1
     nameLbl.TextColor3 = isHeaviest and Color3.fromRGB(255, 220, 50) or themeColor
-    nameLbl.TextStrokeTransparency = 0.2 -- มีขอบเพื่อให้มองเห็นชัดเวลากลืนกับฉากหลัง
+    nameLbl.TextStrokeTransparency = 0.2
     nameLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     nameLbl.Text = (isHeaviest and "👑 " or "✨ ") .. egg.Name .. " [" .. tierName .. "]"
     nameLbl.Font = Enum.Font.GothamBold
     nameLbl.TextSize = 12
     nameLbl.Parent = bg
     
-    -- ส่วนแสดงน้ำหนัก
     local weightLbl = Instance.new("TextLabel")
     weightLbl.Size = UDim2.new(1, 0, 0, 15)
     weightLbl.Position = UDim2.new(0, 0, 0, 15)
@@ -852,7 +849,6 @@ local function createTextESPOnly(egg, part, isHeaviest)
     weightLbl.TextSize = 11
     weightLbl.Parent = bg
     
-    -- ส่วนแสดงระยะทาง (ตัวนี้จะอัปเดตแบบ Real-time ตลอด)
     local distLbl = Instance.new("TextLabel")
     distLbl.Size = UDim2.new(1, 0, 0, 15)
     distLbl.Position = UDim2.new(0, 0, 0, 30)
@@ -1076,19 +1072,18 @@ for i, eggName in ipairs(eggList) do
 end
 
 -- ===========================================================
--- [อัปเดตระบบ] ถอดจิต (Spectate)
+-- [อัปเดตระบบ] ดึงไข่มาดูตรงหน้า (Local) - แก้ไขบัคไข่โดนลบ
 -- ===========================================================
 local isSpectating = false
-local spectateConn = nil
+local localEggClone = nil
 
 local function stopSpectating()
     isSpectating = false
-    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-    local char = player.Character
-    if char and char:FindFirstChild("Humanoid") then
-        workspace.CurrentCamera.CameraSubject = char.Humanoid
+    if localEggClone then
+        localEggClone:Destroy()
+        localEggClone = nil
     end
-    if spectateConn then spectateConn:Disconnect(); spectateConn = nil end
+    
     viewTargetBtn.Text = "👁️ View Target" 
     viewTargetBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
     viewHvyBtn.Text = "👁️ View Hvy" 
@@ -1102,18 +1097,45 @@ local function toggleSpectate(egg, activeBtn)
     end
     
     if not egg or not egg.Parent then return end
-    local targetPart = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
-    if targetPart then
-        isSpectating = true
-        activeBtn.Text = "🔙 Stop View"
-        activeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
-        spectateConn = runService.RenderStepped:Connect(function()
-            if not targetPart or not targetPart.Parent then 
-                stopSpectating() return 
+    
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    isSpectating = true
+    activeBtn.Text = "🔙 Stop View"
+    activeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+    
+    -- โคลนไข่เป้าหมาย
+    egg.Archivable = true
+    localEggClone = egg:Clone()
+    egg.Archivable = false
+    
+    if localEggClone then
+        -- ลบสคริปต์และล็อคชิ้นส่วนไข่โคลน
+        for _, v in pairs(localEggClone:GetDescendants()) do
+            if v:IsA("Script") or v:IsA("LocalScript") then
+                v:Destroy()
+            elseif v:IsA("BasePart") then
+                v.Anchored = true
+                v.CanCollide = false
             end
-            workspace.CurrentCamera.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 6, 8), targetPart.Position)
-        end)
+        end
+        
+        -- แก้ไข: นำไข่โคลนไปใส่ไว้ใน CurrentCamera แทน เพื่อไม่ให้โดนระบบ ESP ของเราลบทิ้ง
+        localEggClone.Parent = workspace.CurrentCamera
+        
+        -- หาแกนหลักของไข่
+        local targetPart = localEggClone:FindFirstChild("Handle") or localEggClone:FindFirstChild("EggBase") or localEggClone.PrimaryPart or localEggClone:FindFirstChildWhichIsA("BasePart")
+        
+        if targetPart then
+            -- วางไข่ไว้ตรงหน้าตัวละคร (ห่าง 5 Studs)
+            local spawnCFrame = hrp.CFrame * CFrame.new(0, 0, -5)
+            localEggClone:PivotTo(spawnCFrame)
+        else
+            localEggClone:Destroy()
+            stopSpectating()
+        end
     end
 end
 
@@ -1319,3 +1341,4 @@ task.spawn(function()
         end
     end
 end)
+
