@@ -75,6 +75,20 @@ local eggPlacedRemote = gameRemotes and gameRemotes:FindFirstChild("EggPlaced")
 local basketDropRemote = gameRemotes and gameRemotes:FindFirstChild("BasketDrop")
 local eggCycleService = rs:FindFirstChild("GameServices") and rs.GameServices:FindFirstChild("EggCycle")
 
+-- 🆕 ตารางสีตามระดับ rarity ของเกม (เพิ่ม tier "Volcanic", "Secret")
+-- เรียงจากสูงไปต่ำ: Secret > Volcanic > Ethereal > Divine > Mythic > Legendary > Epic > Rare > Common
+local RARITY_COLOR = {
+    ["Secret"]    = Color3.fromRGB(234, 179, 8),
+    ["Volcanic"]  = Color3.fromRGB(239, 68, 68),
+    ["Ethereal"]  = Color3.fromRGB(192, 132, 252),
+    ["Divine"]    = Color3.fromRGB(236, 72, 153),
+    ["Mythic"]    = Color3.fromRGB(251, 146, 60),
+    ["Legendary"] = Color3.fromRGB(56, 189, 248),
+    ["Epic"]      = Color3.fromRGB(168, 85, 247),
+    ["Rare"]      = Color3.fromRGB(34, 197, 94),
+    ["Common"]    = Color3.fromRGB(156, 163, 175),
+}
+
 -- [อัปเดตระบบ] ข้อมูลไข่ทั้งหมด + รูปภาพ (ตัดไข่เติมออก)
 local eggDataDict = {
     ["Solaris Egg"]   = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://131016816558781", Short = "Solaris" },
@@ -102,6 +116,15 @@ local eggDataDict = {
     ["Cracked Egg"]   = { Rarity = "Rare", Color = Color3.fromRGB(34, 197, 94), Image = "rbxassetid://77040464450184", Short = "Cracked" },
     ["Brown Egg"]     = { Rarity = "Common", Color = Color3.fromRGB(156, 163, 175), Image = "rbxassetid://125046526765012", Short = "Brown" },
     ["White Egg"]     = { Rarity = "Common", Color = Color3.fromRGB(156, 163, 175), Image = "rbxassetid://112885858949987", Short = "White" },
+    -- 🆕 ไข่ใหม่รอบอัปเดต (พบในดัมป์: ReplicatedStorage.Assets.Eggs)
+    -- หมายเหตุ: Rarity ของไข่ที่ยังไม่สปอว์นในเซิร์ฟนี้เป็นค่าประมาณ ปรับได้ตามจริง
+    ["Volcanic Egg"]    = { Rarity = "Volcanic", Color = RARITY_COLOR["Volcanic"], Image = "", Short = "Volcanic" },
+    ["Dragon Egg"]      = { Rarity = "Ethereal", Color = RARITY_COLOR["Ethereal"], Image = "", Short = "Dragon" },
+    ["Giant Egg"]       = { Rarity = "Divine",   Color = RARITY_COLOR["Divine"],   Image = "", Short = "Giant" },
+    ["Bloom Egg"]       = { Rarity = "Divine",   Color = RARITY_COLOR["Divine"],   Image = "", Short = "Bloom" },
+    ["Tidal Egg"]       = { Rarity = "Mythic",   Color = RARITY_COLOR["Mythic"],   Image = "", Short = "Tidal" },
+    ["Devil Fruit Egg"] = { Rarity = "Mythic",   Color = RARITY_COLOR["Mythic"],   Image = "", Short = "DevilFruit" },
+    ["Admin Egg"]       = { Rarity = "Secret",   Color = RARITY_COLOR["Secret"],   Image = "", Short = "Admin" },
 }
 
 local eggList = {
@@ -109,8 +132,33 @@ local eggList = {
     "Soul Egg", "Sinister Egg", "Flaming Egg", "Dominus Egg", "Asteroid Egg", 
     "Skull Egg", "Crystal Egg", "Diamond Egg", "Golden Egg", "Glass Egg", 
     "Ice Egg", "Slime Egg", "Flower Egg", "Mushroom Egg", "Leaf Egg", 
-    "Stone Egg", "Easter Egg", "Cracked Egg", "Brown Egg", "White Egg"
+    "Stone Egg", "Easter Egg", "Cracked Egg", "Brown Egg", "White Egg",
+    -- 🆕 ไข่ใหม่
+    "Volcanic Egg", "Dragon Egg", "Giant Egg", "Bloom Egg", "Tidal Egg", "Devil Fruit Egg", "Admin Egg"
 }
+
+-- 🆕 จัดเรียงไข่: หายาก/แพงสุดอยู่บน (Secret > Volcanic > Ethereal > Divine > Mythic > Legendary > Epic > Rare > Common)
+-- ถ้าอยากสลับลำดับระดับ rarity แก้เลขใน RARITY_RANK ได้เลย (มาก = อยู่บน)
+local RARITY_RANK = {
+    ["Secret"]    = 9,
+    ["Volcanic"]  = 8,
+    ["Ethereal"]  = 7,
+    ["Divine"]    = 6,
+    ["Mythic"]    = 5,
+    ["Legendary"] = 4,
+    ["Epic"]      = 3,
+    ["Rare"]      = 2,
+    ["Common"]    = 1,
+}
+local eggOrderIndex = {}
+for i, name in ipairs(eggList) do eggOrderIndex[name] = i end
+table.sort(eggList, function(a, b)
+    local ra = (eggDataDict[a] and RARITY_RANK[eggDataDict[a].Rarity]) or 0
+    local rb = (eggDataDict[b] and RARITY_RANK[eggDataDict[b].Rarity]) or 0
+    if ra ~= rb then return ra > rb end
+    -- ระดับเท่ากัน: คงลำดับเดิมของรายการไว้ (เรียงเสถียร)
+    return (eggOrderIndex[a] or 0) < (eggOrderIndex[b] or 0)
+end)
 
 -- อัพเดทตัวแปรระบบ
 local currentTargetEgg = nil 
@@ -956,6 +1004,71 @@ local function updateInspectorESP()
 end
 
 -- ==========================================
+-- 🆕 พรีวิวไข่ที่ยังไม่มีรูป: เรนเดอร์โมเดลไข่จริงจาก ReplicatedStorage.Assets.Eggs
+-- (ใช้เฉพาะไข่ที่ Image ว่าง — ไข่เดิมทั้ง 25 ตัวยังใช้ ImageLabel เหมือนเดิมทุกอย่าง)
+-- ==========================================
+local eggPreviewCache = {}
+local function getEggPreviewModel(eggName)
+    if eggPreviewCache[eggName] ~= nil then return eggPreviewCache[eggName] end
+    local model = nil
+    pcall(function()
+        local assets = rs:FindFirstChild("Assets")
+        local eggsFolder = assets and assets:FindFirstChild("Eggs")
+        local template = eggsFolder and eggsFolder:FindFirstChild(eggName)
+        if template and template:IsA("Model") then
+            model = template:Clone()
+            for _, v in pairs(model:GetDescendants()) do
+                if v:IsA("Script") or v:IsA("LocalScript") then
+                    v:Destroy()
+                elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("Highlight") then
+                    v:Destroy()
+                elseif v:IsA("BasePart") then
+                    v.Anchored = true
+                    v.CanCollide = false
+                    v.CanQuery = false
+                    v.CanTouch = false
+                elseif v:IsA("ParticleEmitter") or v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then
+                    v.Enabled = false
+                end
+            end
+        end
+    end)
+    eggPreviewCache[eggName] = model or false
+    return model
+end
+
+local function createEggPreview(parent, eggName)
+    local model = getEggPreviewModel(eggName)
+    if not model then return nil end
+    local ok, frame = pcall(function()
+        local vp = Instance.new("ViewportFrame")
+        vp.Size = UDim2.new(1, -8, 1, -26)
+        vp.Position = UDim2.new(0, 4, 0, 3)
+        vp.BackgroundTransparency = 1
+        vp.Ambient = Color3.fromRGB(215, 215, 225)
+        vp.LightColor = Color3.fromRGB(255, 255, 255)
+        vp.LightDirection = Vector3.new(-0.4, -1, -0.6)
+        vp.Parent = parent
+
+        model.Parent = vp
+
+        local cam = Instance.new("Camera")
+        cam.FieldOfView = 40
+        cam.Parent = vp
+        vp.CurrentCamera = cam
+
+        local cf, size = model:GetBoundingBox()
+        local maxDim = math.max(size.X, size.Y, size.Z)
+        if not maxDim or maxDim <= 0 then maxDim = 1 end
+        local dist = maxDim * 1.9
+        cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, maxDim * 0.22, dist), cf.Position)
+        return vp
+    end)
+    if not ok then return nil end
+    return frame
+end
+
+-- ==========================================
 -- ปุ่มไข่ (รูปภาพ + แบดจ์บอกคิว)
 -- ==========================================
 for i, eggName in ipairs(eggList) do
@@ -990,6 +1103,15 @@ for i, eggName in ipairs(eggList) do
     nameLbl.Font = Enum.Font.GothamBold
     nameLbl.TextSize = 10
     nameLbl.TextScaled = true
+
+    -- 🆕 ไข่ใหม่ที่ยังไม่มีรูป: เรนเดอร์โมเดลไข่จริงในเกมแทน (ถ้าหาโมเดลไม่ได้ค่อยขยายชื่อเต็มปุ่ม)
+    if not data.Image or data.Image == "" then
+        img.Visible = false
+        if not createEggPreview(b, eggName) then
+            nameLbl.Size = UDim2.new(1, -4, 1, -8)
+            nameLbl.Position = UDim2.new(0, 2, 0, 4)
+        end
+    end
     
     local badge = Instance.new("Frame", b)
     badge.Size = UDim2.new(0, 18, 0, 18)
