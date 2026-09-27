@@ -157,6 +157,8 @@ local activeBillboards = {}
 local lastRemoteCall = 0
 local tpMode = 3
 local flySpeed = 700
+local lairEnteredAt = 0; local lairEnteredChar = nil -- 🚪 จำว่าเพิ่งเดินผ่านประตู Lair (กันเข้าซ้ำทุกเที่ยว)
+local lairOutSign = -1 -- ทิศ "ด้านนอก" ของประตูที่ผ่านสำเร็จ (-1 หรือ 1) ไว้ใช้ตอนลอยออก
 local minFlySpeed, maxFlySpeed = 50, 700
 local isGrabbing = false
 
@@ -192,36 +194,127 @@ local function hopLowPlayerServer()
     teleportService:Teleport(placeId, player)
 end
 
-local function enablePotatoMode()
+-- 🥔 BOOST FPS : โหมดประหยัดกราฟิก (กดซ้ำเพื่อคืนค่าทุกอย่างกลับเหมือนเดิม)
+local boostActive = false
+local boostUndo = {}                                    -- รายการคืนค่า (เก็บค่าตัวเก่าไว้)
+local boostDone = setmetatable({}, { __mode = "k" })   -- กันประมวลผล instance ซ้ำ
+local boostConn = nil
+local boostProtectedRoots = { parentGui }               -- UI ของเราห้ามแตะ
+
+local function boostProtected(inst)
+    for _, root in ipairs(boostProtectedRoots) do
+        if root and inst:IsDescendantOf(root) then return true end
+    end
+    return false
+end
+
+-- จำค่าเดิมไว้คืน แล้วตั้งค่าใหม่ (ถ้าไม่มีพร็อพนี้ในเวอร์ชันนี้ก็ข้ามไป)
+local function boostSet(inst, prop, value)
+    local ok, old = pcall(function() return inst[prop] end)
+    if not ok then return end
+    table.insert(boostUndo, function() pcall(function() inst[prop] = old end) end)
+    pcall(function() inst[prop] = value end)
+end
+
+-- ถอดออกจากแมพชั่วคราว (คืนได้ เพราะเก็บ Parent เดิมไว้)
+local function boostDetach(inst)
+    local oldParent = inst.Parent
+    if not oldParent then return end
+    table.insert(boostUndo, function() pcall(function() inst.Parent = oldParent end) end)
+    pcall(function() inst.Parent = nil end)
+end
+
+local function boostClean(inst)
+    if boostDone[inst] or boostProtected(inst) then return end
+    boostDone[inst] = true
+    if inst:IsA("BasePart") then
+        boostSet(inst, "Material", Enum.Material.SmoothPlastic)
+        boostSet(inst, "Reflectance", 0)
+        boostSet(inst, "CastShadow", false)
+        if inst:IsA("MeshPart") then boostSet(inst, "TextureID", "") end -- ลบเท็กซ์เจอร์ mesh
+    elseif inst:IsA("Decal") or inst:IsA("Texture") then
+        boostSet(inst, "Texture", "")        -- ลบเท็กซ์เจอร์/ความชัด
+        boostSet(inst, "Transparency", 1)
+    elseif inst:IsA("SpecialMesh") then
+        boostSet(inst, "TextureId", "")
+    elseif inst:IsA("SurfaceAppearance") then
+        boostDetach(inst)                     -- ลบ PBR (เงา/ความหยาบ)
+    elseif inst:IsA("Highlight") then
+        boostSet(inst, "Enabled", false)
+    elseif inst:IsA("SelectionBox") or inst:IsA("SelectionSphere") then
+        boostSet(inst, "Visible", false)
+    elseif inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Beam") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then
+        boostSet(inst, "Enabled", false)
+    elseif inst:IsA("Explosion") or inst:IsA("Clouds") or inst:IsA("Sky") then
+        boostDetach(inst)
+    elseif inst:IsA("Model") then
+        local name = string.lower(inst.Name)
+        -- ห้ามแตะอะไรที่ชื่อมีคำว่า egg (กันระบบฟาร์ม/ไข่หาย)
+        if not name:find("egg") and (name:find("tree") or name:find("bush") or name:find("grass") or name:find("plant") or name:find("leaf")) then
+            boostDetach(inst)                 -- ต้นไม้/หญ้า (ย้ายออก ไม่ Destroy -> คืนได้)
+        end
+    end
+end
+
+local function boostSweep()
+    for _, inst in ipairs(workspace:GetDescendants()) do boostClean(inst) end
+end
+
+local function boostEnable()
+    if boostActive then return end
+    boostActive = true
+    boostUndo = {}; boostDone = setmetatable({}, { __mode = "k" })
+
     local lighting = game:GetService("Lighting")
-    lighting.GlobalShadows = false
-    lighting.FogEnd = 9e9
-    lighting.Brightness = 1
-    
-    for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("Atmosphere") then
-            v.Enabled = false
+    boostSet(lighting, "GlobalShadows", false)
+    boostSet(lighting, "FogEnd", 9e9)
+    boostSet(lighting, "Brightness", 1)
+    boostSet(lighting, "EnvironmentDiffuseScale", 0)
+    boostSet(lighting, "EnvironmentSpecularScale", 0)
+    for _, v in ipairs(lighting:GetChildren()) do
+        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+            boostSet(v, "Enabled", false)
+        elseif v:IsA("Sky") or v:IsA("Clouds") then
+            boostDetach(v)                        -- ท้องฟ้า/เมฆ (ย้ายออก คืนได้)
         end
     end
 
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Reflectance = 0
-            v.CastShadow = false
-        elseif v:IsA("Decal") or v:IsA("Texture") then
-            v:Destroy()
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
-            v.Enabled = false
-        elseif v:IsA("Model") then
-            local name = string.lower(v.Name)
-            if name:find("tree") or name:find("bush") or name:find("grass") or name:find("plant") or name:find("leaf") then
-                v:Destroy()
-            end
-        end
+    local terrain = workspace:FindFirstChildOfClass("Terrain")
+    if terrain then
+        boostSet(terrain, "Decoration", false)   -- ปิดหญ้าประดับ
+        boostSet(terrain, "GrassLength", 0)
+        boostSet(terrain, "WaterWaveSize", 0)
+        boostSet(terrain, "WaterWaveSpeed", 0)
+        boostSet(terrain, "WaterTransparency", 1)
     end
+
     pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+
+    boostSweep()
+
+    -- เอฟเฟกต์ที่เกิดใหม่หลังกดบูสต์ ก็เก็บด้วย (ทั้งตอนเกิดใหม่และสแกนซ้ำ)
+    if not boostConn then
+        boostConn = workspace.DescendantAdded:Connect(function(inst)
+            if boostActive then boostClean(inst) end
+        end)
+    end
 end
+
+local function boostDisable()
+    if not boostActive then return end
+    boostActive = false
+    for i = #boostUndo, 1, -1 do pcall(boostUndo[i]) end
+    boostUndo = {}; boostDone = setmetatable({}, { __mode = "k" })
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+end
+
+-- สแกนซ้ำทุก 4 วิ เผื่อตัวที่หลุดมาจาก DescendantAdded
+task.spawn(function()
+    while true do
+        task.wait(4)
+        if boostActive then boostSweep() end
+    end
+end)
 
 -- -------------------------------------------------------------
 -- RESPONSIVE UI CONSTRUCTION
@@ -717,7 +810,17 @@ fpsBtn.TextSize = 9
 fpsBtn.AutoButtonColor = true
 fpsBtn.Parent = secRight
 Instance.new("UICorner", fpsBtn).CornerRadius = UDim.new(0, 6)
-fpsBtn.Activated:Connect(function() fpsBtn.Text = "✅ Boosted!"; fpsBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129); enablePotatoMode() end)
+fpsBtn.Activated:Connect(function()
+    if boostActive then
+        boostDisable()
+        fpsBtn.Text = "🥔 Boost FPS\n(Clear Trees/Gfx)"
+        fpsBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    else
+        boostEnable()
+        fpsBtn.Text = "✅ Boost เปิดอยู่\n(กดอีกครั้งเพื่อคืนค่า)"
+        fpsBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    end
+end)
 
 local rejoinBtn = Instance.new("TextButton")
 rejoinBtn.Size = UDim2.new(1, -16, 0, 32)
@@ -735,6 +838,67 @@ rejoinBtn.Activated:Connect(function()
     rejoinBtn.Text = "⏳ Rejoining..."
     if #game:GetService("Players"):GetPlayers() <= 1 then player:Kick("Rejoining..."); task.wait(0.5); teleportService:Teleport(game.PlaceId, player)
     else teleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player) end
+end)
+
+-- 🧪 ปุ่มจำลองไข่เกิด (ฝั่งเราเท่านั้น ไว้ทดสอบแจ้งเตือน/ESP ไม่ต้องรอไข่จริง) — กดซ้ำเพื่อลบทั้งหมด
+local fakeEggList = {}
+local fakeEggOrder = { "Volcanic Egg", "Cherub Egg", "Solaris Egg", "Diamond Egg", "Golden Egg" }
+local function clearFakeEggs()
+    for _, fe in pairs(fakeEggList) do pcall(function() fe:Destroy() end) end
+    fakeEggList = {}
+end
+local function spawnFakeEgg(eggName)
+    local template = nil
+    pcall(function()
+        local assets = rs:FindFirstChild("Assets"); local eggsFolder = assets and assets:FindFirstChild("Eggs")
+        template = eggsFolder and eggsFolder:FindFirstChild(eggName)
+    end)
+    local model
+    if template and template:IsA("Model") then
+        template.Archivable = true; model = template:Clone(); template.Archivable = false
+    else
+        model = Instance.new("Model"); model.Name = eggName
+        local part = Instance.new("Part"); part.Name = "EggBase"; part.Size = Vector3.new(2, 3, 2)
+        part.CFrame = CFrame.new(0, -50, 0); part.Parent = model
+    end
+    model.Name = eggName
+    for _, v in pairs(model:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("Highlight") then v:Destroy()
+        elseif v:IsA("BasePart") then v.Anchored = true; v.CanCollide = false; v.CanQuery = false; v.CanTouch = false
+        elseif v:IsA("ParticleEmitter") or v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then v.Enabled = false end
+    end
+    local char = player.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then model:Destroy(); return end
+    local angle = math.random() * math.pi * 2; local radius = 14 + math.random() * 8
+    local pos = hrp.CFrame.Position + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+    local ray = workspace:Raycast(pos + Vector3.new(0, 50, 0), Vector3.new(0, -200, 0))
+    if ray then pos = ray.Position + Vector3.new(0, 2, 0) end
+    model.Parent = workspace
+    model:SetAttribute("FakeEgg", true) -- ใช้กัน Auto Farm ไล่เก็บไข่ปลอม
+    model:PivotTo(CFrame.new(pos))
+    table.insert(fakeEggList, model)
+end
+local fakeBtn = Instance.new("TextButton")
+fakeBtn.Size = UDim2.new(1, -16, 0, 32)
+fakeBtn.Position = UDim2.new(0, 8, 0, 140)
+fakeBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
+fakeBtn.BackgroundTransparency = 0.3
+fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)"
+fakeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fakeBtn.Font = Enum.Font.GothamBold
+fakeBtn.TextSize = 9
+fakeBtn.AutoButtonColor = true
+fakeBtn.Parent = secRight
+Instance.new("UICorner", fakeBtn).CornerRadius = UDim.new(0, 6)
+fakeBtn.Activated:Connect(function()
+    if #fakeEggList > 0 then
+        clearFakeEggs()
+        fakeBtn.Text = "🧪 ล้างไข่จำลองแล้ว (0)"
+    else
+        for _, name in ipairs(fakeEggOrder) do spawnFakeEgg(name) end
+        fakeBtn.Text = "🧪 เกิดแล้ว 5 ไข่ (กด = ลบ)"
+    end
+    task.delay(2, function() if not sg or not sg.Parent then return end; if #fakeEggList > 0 then fakeBtn.Text = "🧪 เกิดแล้ว " .. #fakeEggList .. " ไข่ (กด = ลบ)" else fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)" end end)
 end)
 
 local weatherPage = Instance.new("Frame")
@@ -977,7 +1141,7 @@ end
 local function scanForFarmQueue()
     local eggsByName = {}
     for _, item in pairs(workspace:GetDescendants()) do
-        if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) then
+        if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) and not item:GetAttribute("FakeEgg") then
             for _, en in ipairs(eggList) do
                 if string.find(string.lower(item.Name), string.lower(en)) then 
                     if not eggsByName[en] then eggsByName[en] = {} end
@@ -1206,8 +1370,31 @@ local function unequipAllTools()
     if hum then pcall(function() hum:UnequipTools() end) end
 end
 
+-- ✈️ บินแบบลื่น ๆ ไปยังจุดหมาย (ใช้กับเส้นทาง Lair ของ Volcanic — noclip ตลอดทาง)
+local function volcFlyTo(hrpIn, targetPos, speed)
+    local startT = os.clock(); local lastStep = os.clock()
+    while os.clock() - startT < 10 do
+        local ch = player.Character
+        if not ch or not ch:FindFirstChild("HumanoidRootPart") then break end
+        local h = ch.HumanoidRootPart
+        for _, cp in pairs(ch:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
+        local diff = targetPos - h.Position; local dist = diff.Magnitude
+        if dist <= 3 then break end
+        local now = os.clock(); local dt = math.clamp(now - lastStep, 0.005, 0.1); lastStep = now
+        local stepDist = math.min(dist, speed * dt)
+        h.CFrame = CFrame.new(h.Position + diff.Unit * stepDist)
+        h.AssemblyLinearVelocity = Vector3.zero; h.AssemblyAngularVelocity = Vector3.zero
+        runService.Heartbeat:Wait()
+    end
+end
+
 local function grabAndReturn(egg)
     if isGrabbing then return end
+    -- 🧪 ไข่จำลองเก็บไม่ได้จริง (เซิร์ฟเวอร์ไม่รู้จัก) แต่ "Volcanic ปลอม" ใช้ทดสอบทัวร์ประตู Lair ได้
+    -- ไข่ปลอมชนิดอื่น = ไม่ตอบสนอง กันวาปไปหยิบไข่ปลอมเสียเวลา
+    if not egg or not egg.Parent then return end
+    local isFakeTest = egg:GetAttribute("FakeEgg") == true
+    if isFakeTest and not string.find(string.lower(egg.Name), "volcanic", 1, true) then return end
     local char = player.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp or not egg or not egg.Parent then return end
     local targetPart = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
@@ -1216,6 +1403,100 @@ local function grabAndReturn(egg)
     
     isGrabbing = true
     hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero; local eggName = egg.Name
+    
+    -- 🚪 Volcanic Egg เกิดในรัง Volkaris (Lair) เกมบังคับว่าต้อง "เดินผ่านประตู VolcanoEntrance" ก่อนถึงเก็บได้
+    -- 🔥 ยืนยันความสำเร็จด้วยบัฟ "Scorching" (PlayerGui.Main.ActiveWeathers.Scorching) ที่โผล่เฉพาะตอนเกมนับว่าเราอยู่ในภูเขาไฟ
+    -- บินลื่น ๆ ผ่านประตูจริง (ไม่วาปกระชาก) → บินลงไปหาไข่ในรัง
+    if string.find(string.lower(eggName), "volcanic", 1, true) then
+        pcall(function()
+            local function hasScorching()
+                local pg = player:FindFirstChild("PlayerGui")
+                local main = pg and pg:FindFirstChild("Main")
+                local aw = main and main:FindFirstChild("ActiveWeathers")
+                return aw ~= nil and aw:FindFirstChild("Scorching") ~= nil
+            end
+            local volc = workspace:FindFirstChild("Volcano")
+            local doorPart = volc and volc:FindFirstChild("VolcanoEntrance")
+            if doorPart and doorPart:IsA("BasePart") and hrp.Parent then
+                local doorCF = doorPart.CFrame
+                local skippedDoor = hasScorching() -- มีบัฟอยู่แล้ว (เข้าครั้งก่อน) = ข้ามประตู วาปเข้าหาไข่เลย
+                -- 🔒 น็อคลิปต่อเนื่องตลอดทัวร์ประตู (จุดรอ/ช่วงพัก ก็ยัง noclip — กันโดนหินภูเขาเด้งออก)
+                local tourNoclip = runService.Stepped:Connect(function()
+                    if player.Character then
+                        for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
+                    end
+                end)
+                pcall(function()
+                    if not skippedDoor then
+                        -- 🏔️ ทำแบบตอนแรก: วาปลง "พื้นดินโคนเขา" จริง ๆ ก่อน (raycast หาพื้นหน้าเขา ห่างประตู 40 studs)
+                        -- แล้วลอยขึ้นสู่ระดับประตู → ค่อย ๆ ทะลุเข้าไปให้เกมนับว่าเดินเข้า (Touched ยิงเองตามการเคลื่อนที่)
+                        -- ไม่แน่ใจว่าประตูหันทางไหน → รอบ 1 ลองจากฝั่ง -Z รอบ 2 ฝั่ง +Z รอบ 3 กลับไป -Z
+                        for doorTry = 1, 3 do
+                            local outSign = (doorTry == 2) and 1 or -1
+                            local basePoint = (doorCF * CFrame.new(0, 0, 40 * outSign)).Position
+                            local groundRay = workspace:Raycast(basePoint + Vector3.new(0, 400, 0), Vector3.new(0, -800, 0))
+                            if groundRay then
+                                hrp.CFrame = CFrame.new(groundRay.Position + Vector3.new(0, 4, 0)) -- ยืนบนพื้นดินโคนเขา
+                            else
+                                hrp.CFrame = doorCF * CFrame.new(0, -3, 40 * outSign) -- หาพื้นไม่เจอ ใช้จุดเผื่อ
+                            end
+                            hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+                            task.wait(0.1)
+                            volcFlyTo(hrp, (doorCF * CFrame.new(0, 0, 30 * outSign)).Position, 150) -- ลอยขึ้นสูงระดับประตู
+                            volcFlyTo(hrp, (doorCF * CFrame.new(0, 0, 6 * outSign)).Position, 100) -- เข้าหน้าประตู
+                            volcFlyTo(hrp, doorCF.Position, 90) -- ทะลุกลางประตูช้า ๆ ให้ทริกเกอร์ยิงแน่ ๆ
+                            pcall(function() if firetouchinterest then firetouchinterest(hrp, doorPart, 0); firetouchinterest(hrp, doorPart, 1) end end)
+                            volcFlyTo(hrp, (doorCF * CFrame.new(0, 5, 45 * -outSign)).Position, 90) -- ลอยเข้าไปลึกขึ้นในถ้ำ (ไม่หยุดแค่ปากประตู)
+                            local buffWait = os.clock(); local holdCF = hrp.CFrame
+                            while os.clock() - buffWait < 1.5 do
+                                local hh = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                                if hh then hh.CFrame = holdCF; hh.AssemblyLinearVelocity = Vector3.zero; hh.AssemblyAngularVelocity = Vector3.zero end -- 🔒 ล็อคตำแหน่ง กันตกทะลุพื้นระหว่างรอ (noclip เปิดอยู่)
+                                if hasScorching() then break end
+                                task.wait(0.1)
+                            end
+                            if hasScorching() then lairOutSign = outSign break end -- บัฟขึ้น = เข้าได้จริง + จำทิศนอกไว้
+                        end
+                    end
+                    -- 🏃 ลงไปหาไข่: ลอยลื่น ๆ จากในถ้ำลงไปที่ตัวไข่ (ไม่วาปดิ่งหาไข่)
+                    -- ถ้าข้ามประตู (มีบัฟอยู่แล้ว) → วาปไปจุดเริ่ม "ในถ้ำ" ก่อน แล้วลอยลงหาไข่เหมือนกัน
+                    if targetPart and targetPart.Parent and not isFakeTest then
+                        if skippedDoor then
+                            hrp.CFrame = doorCF * CFrame.new(0, 5, 45 * -lairOutSign) -- จุดเริ่มในถ้ำ (ฝั่งในของประตู)
+                            hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+                            task.wait(0.05)
+                        end
+                        volcFlyTo(hrp, targetPart.Position + Vector3.new(0, 3, 0), 200)
+                        -- ยืนในถ้ำแล้ว รอบัฟกลับมา (เกมอาจถอดระหว่างทาง) นานสุด 2 วิ — ล็อคตำแหน่งที่ไข่ กันตกทะลุพื้น
+                        local reBuff = os.clock(); local eggHoldCF = hrp.CFrame
+                        while os.clock() - reBuff < 2 do
+                            local hh = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                            if hh then hh.CFrame = eggHoldCF; hh.AssemblyLinearVelocity = Vector3.zero; hh.AssemblyAngularVelocity = Vector3.zero end
+                            if hasScorching() then break end
+                            task.wait(0.1)
+                        end
+                    end
+                end)
+                tourNoclip:Disconnect()
+                lairEnteredAt = os.clock(); lairEnteredChar = player.Character
+            end
+        end)
+    end
+    
+    -- 🧪 โหมดทดสอบทัวร์ประตู (ไข่ Volcanic ปลอม): ผ่านประตูแล้ววาปไปจุดเกิดไข่มังกรจริง (EggSpawns.Volcanic)
+    -- ไม่ยิง remote เก็บ ไม่บินกลับบ้าน — ไว้ดูด้วยตาว่าทริกเกอร์ประตู + บัฟ Scorching ทำงานหรือไม่
+    if isFakeTest then
+        pcall(function()
+            local spFolder = workspace:FindFirstChild("EggSpawns")
+            local volcSpawn = spFolder and spFolder:FindFirstChild("Volcanic")
+            if volcSpawn and volcSpawn:IsA("BasePart") and hrp.Parent then
+                hrp.CFrame = volcSpawn.CFrame + Vector3.new(0, 4, 0)
+                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+        task.wait(0.1)
+        isGrabbing = false
+        return
+    end
     
     if tpMode == 2 then
         local originalPos = homeCFrame or hrp.CFrame; hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
@@ -1232,24 +1513,61 @@ local function grabAndReturn(egg)
         pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
     elseif tpMode == 3 then
         local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame; local beforeCount, _ = countOwnedEggs(eggName)
-        local standPos = targetPart.Position + Vector3.new(2.0, 1.5, 0)
-        hrp.CFrame = CFrame.lookAt(standPos, Vector3.new(targetPart.Position.X, standPos.Y, targetPart.Position.Z))
-        hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+        -- 🎯 ยืนจุดเก็บจริง: อ้างจาก ProximityPrompt ของไข่ก่อน (จุดที่เกมให้กดเก็บ) ไม่ใช่กึ่งกลางโมเดล
+        local interactPart = targetPart
+        pcall(function()
+            local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt and prompt.Parent then
+                local pp = prompt.Parent
+                if pp:IsA("BasePart") then interactPart = pp
+                elseif pp:IsA("Attachment") and pp.Parent and pp.Parent:IsA("BasePart") then interactPart = pp.Parent end
+            end
+        end)
+        -- 📏 ไข่ตัวใหญ่: คำนวณรัศมีจากขนาดจริง เพื่อยืนนอกตัวไข่ (ยืนทับจะโดน hitbox ดันออก เก็บไม่ติด)
+        local eggRadius = 2.0
+        pcall(function()
+            local s = interactPart.Size
+            if s and s.Magnitude > 0 then eggRadius = math.max(s.X, s.Z) * 0.5 end
+        end)
+        local off = math.min(eggRadius + 2.5, 8.0)
+        local standCandidates = {
+            Vector3.new(off, 2.0, 0), Vector3.new(-off, 2.0, 0),
+            Vector3.new(0, 2.0, off), Vector3.new(0, 2.0, -off),
+            Vector3.new(2.0, 1.5, 0),
+            Vector3.new(0, math.min(eggRadius + 3.0, 10.0), 0),
+        }
+        local candIdx = 1
+        local attempt = 0
+        local function standAtEgg()
+            local base = (interactPart and interactPart.Parent) and interactPart.Position or targetPart.Position
+            local sp = base + standCandidates[candIdx]
+            hrp.CFrame = CFrame.lookAt(sp, Vector3.new(base.X, sp.Y, base.Z))
+            hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+        standAtEgg()
         
         local startTime = os.clock()
-        while (os.clock() - startTime < 6.0) do
+        -- 🔁 พยายามนานขึ้น (15 วิ): ได้ไข่เข้ามือก่อนถึงจะบินกลับ ไม่กลับมือเปล่าเร็ว ๆ
+        while (os.clock() - startTime < 15.0) do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp = player.Character.HumanoidRootPart
-            if targetPart and targetPart.Parent then
-                standPos = targetPart.Position + Vector3.new(2.0, 1.5, 0)
-                hrp.CFrame = CFrame.lookAt(standPos, Vector3.new(targetPart.Position.X, standPos.Y, targetPart.Position.Z))
-                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+            for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end -- noclip ตอนพยายามเก็บ กันโดน hitbox ไข่ยักษ์ดันออก
+            if egg and egg.Parent and interactPart and interactPart.Parent then
+                attempt = attempt + 1
+                standAtEgg()
+                if attempt % 6 == 0 then candIdx = (candIdx % #standCandidates) + 1 end -- หมุนเปลี่ยนจุดยืนรอบไข่ทุก ~0.6 วิ หาจุดที่เก็บติด
+                pcall(function()
+                    if eggPickupRemote then eggPickupRemote:FireServer(egg) end
+                    local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then
+                        prompt.HoldDuration = 0; prompt.MaxActivationDistance = math.huge
+                        if fireproximityprompt then fireproximityprompt(prompt) end
+                    end
+                    local cd = egg:FindFirstChildWhichIsA("ClickDetector", true)
+                    if cd and fireclickdetector then fireclickdetector(cd) end
+                    if firetouchinterest and hrp then firetouchinterest(hrp, interactPart, 0); firetouchinterest(hrp, interactPart, 1) end
+                end)
             end
-            pcall(function()
-                if eggPickupRemote then eggPickupRemote:FireServer(egg) end
-                local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then prompt.HoldDuration = 0; if fireproximityprompt then fireproximityprompt(prompt) end end
-            end)
             local nowCount, inHand = countOwnedEggs(eggName)
             local eggGoneFromWild = (not egg or not egg.Parent or not isWildEgg(egg))
             if nowCount > beforeCount or (eggGoneFromWild and (inHand or ensureEggInHand(eggName))) then
@@ -1266,6 +1584,25 @@ local function grabAndReturn(egg)
             end
             if eggGoneFromWild and (os.clock() - startTime > 1.2) then break end
             task.wait(0.08)
+        end
+        
+        -- 🚪 Volcanic: ลอยออกทางเดิม (ทะลุประตูกลับออกมา) ก่อนบินกลับบ้าน
+        if string.find(string.lower(eggName), "volcanic", 1, true) then
+            pcall(function()
+                local volc = workspace:FindFirstChild("Volcano")
+                local doorPart = volc and volc:FindFirstChild("VolcanoEntrance")
+                if doorPart and doorPart:IsA("BasePart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local exitNoclip = runService.Stepped:Connect(function() -- 🔒 น็อคลิปต่อเนื่องตอนลอยออก กันโดนหินเด้ง
+                        if player.Character then
+                            for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
+                        end
+                    end)
+                    local doorCF = doorPart.CFrame
+                    volcFlyTo(player.Character.HumanoidRootPart, doorCF.Position, 120) -- ลอยขึ้นเข้ากลางประตู
+                    volcFlyTo(player.Character.HumanoidRootPart, (doorCF * CFrame.new(0, 5, 15 * lairOutSign)).Position, 120) -- ลอยออกด้านนอกทางเดิม
+                    exitNoclip:Disconnect()
+                end
+            end)
         end
         
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -1357,11 +1694,8 @@ local notificationEnabled = false
 local isNotifying = false
 local notifiedEggs = {}
 
--- กำลังใช้งานระบบอยู่หรือไม่ (Auto Farm / View ส่องไข่ / TP เก็บไข่)
-local function isNotificationSuppressed()
-    return isFarming or isSpectating or isGrabbing
-end
-
+-- ใช้คู่กับ Auto Farm / TP เก็บไข่ ได้พร้อมกัน ไม่มีการตัดเสียงอัตโนมัติแล้ว
+-- เสียง+ป๊อปอัปจะหยุดก็ต่อเมื่อกดปุ่มบนป๊อปอัป หรือกดปุ่ม 🔔 ปิดระบบเอง
 local function stopAlertNow()
     if isNotifying then
         alertSound:Stop()
@@ -1369,11 +1703,6 @@ local function stopAlertNow()
         isNotifying = false
     end
 end
-
--- ตัดเสียงทันทีเมื่อเริ่มใช้ระบบ (Auto Farm / View ส่องไข่ / TP เก็บไข่)
-runService.Heartbeat:Connect(function()
-    if isNotifying and isNotificationSuppressed() then stopAlertNow() end
-end)
 
 notifyBtn.Activated:Connect(function()
     notificationEnabled = not notificationEnabled
@@ -1411,12 +1740,12 @@ end
 
 task.spawn(function()
     while task.wait(1) do
-        if isNotificationSuppressed() then
-            stopAlertNow()
-        elseif notificationEnabled and not isNotifying then
+        if notificationEnabled then
+            -- ไข่ใหม่ = แจ้งซ้ำได้เลย แม้ป๊อปอัปเดิมยังค้างอยู่ (ไม่บล็อกการออโต้เก็บไข่)
             for _, found in ipairs(findWhitelistedWildEggs()) do
                 if not notifiedEggs[found.Egg] then
                     notifiedEggs[found.Egg] = true
+                    if not isNotifying then alertSound.TimePosition = 0 end
                     isNotifying = true
                     popupMsg.Text = "🎉 พบไข่แจ้งเตือน!\n[" .. found.Name .. "]"
                     popupFrame.Visible = true
