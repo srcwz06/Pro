@@ -901,6 +901,44 @@ fakeBtn.Activated:Connect(function()
     task.delay(2, function() if not sg or not sg.Parent then return end; if #fakeEggList > 0 then fakeBtn.Text = "🧪 เกิดแล้ว " .. #fakeEggList .. " ไข่ (กด = ลบ)" else fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)" end end)
 end)
 
+-- 📍 ปุ่มบันทึกพิกัดตัวเอง: กดครั้งไหน เก็บพิกัดจุดนั้นลง txt (ต่อท้ายเรื่อย ๆ กดได้หลายจุด) + คัดลอกให้คลิปบอร์ด
+local pinBtn = Instance.new("TextButton")
+pinBtn.Size = UDim2.new(1, -16, 0, 32)
+pinBtn.Position = UDim2.new(0, 8, 0, 178)
+pinBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
+pinBtn.BackgroundTransparency = 0.3
+pinBtn.Text = "📍 บันทึกพิกัดตัวเอง"
+pinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+pinBtn.Font = Enum.Font.GothamBold
+pinBtn.TextSize = 9
+pinBtn.AutoButtonColor = true
+pinBtn.Parent = secRight
+Instance.new("UICorner", pinBtn).CornerRadius = UDim.new(0, 6)
+pinBtn.Activated:Connect(function()
+    local ch = player.Character; local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not hrp then pinBtn.Text = "❌ ไม่พบตัวละคร"; task.delay(1.5, function() if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง" end end); return end
+    local p = hrp.CFrame
+    local coords = string.format("%.2f, %.2f, %.2f", p.Position.X, p.Position.Y, p.Position.Z)
+    local look = string.format("%.2f, %.2f, %.2f", p.LookVector.X, p.LookVector.Y, p.LookVector.Z)
+    local line = string.format("[%s] pos=(%s) look=(%s)", os.date("%d/%m/%Y %H:%M:%S"), coords, look)
+    -- เขียนไฟล์: มีของเดิม → ต่อท้าย (กดได้หลายจุดสะสมในไฟล์เดียว) ไม่มี → สร้างใหม่พร้อมหัวไฟล์
+    local okFile, filePath = pcall(function()
+        if isfile and isfile("apex_pins.txt") then
+            local old = readfile("apex_pins.txt")
+            writefile("apex_pins.txt", old .. "\n" .. line)
+            return "apex_pins.txt (ต่อท้าย)"
+        end
+        writefile("apex_pins.txt", "-- 📍 พิกัดที่บันทึกจาก Apex Inspector PRO (จุดละบรรทัด)\n" .. line)
+        return "apex_pins.txt (ไฟล์ใหม่)"
+    end)
+    pcall(function() if setclipboard then setclipboard(coords) end end)
+    local savedMsg = okFile and tostring(filePath) or "คลิปบอร์ดอย่างเดียว (เขียนไฟล์ไม่ได้)"
+    pinBtn.Text = "✅ บันทึก: " .. coords
+    task.delay(2.5, function()
+        if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง (" .. savedMsg .. ")" end
+    end)
+end)
+
 local weatherPage = Instance.new("Frame")
 weatherPage.Size = UDim2.new(1, 0, 1, 0)
 weatherPage.BackgroundTransparency = 1
@@ -1388,6 +1426,101 @@ local function volcFlyTo(hrpIn, targetPos, speed)
     end
 end
 
+-- 🗺️ เส้นทางออกจากรังหลังเก็บไข่ — พิกัดจริง 32 จุดที่บันทึกด้วยปุ่ม 📍 (28/09 03:24-03:29) เรียงตามลำดับ
+-- ถ้ำคดเคี้ยวจริง: พื้นรัง → ทางตรงยาว → โค้งกลับ → ไต่ขึ้น → ทางโค้งเข้าประตู → ทะลุออกฝั่งนอก
+-- ⚠️ จุดถี่ ๆ คือหัวโค้ง — บินตามจุดจะไม่ลัดมุมทะลุกำแพง อย่าลบจุดออก
+local LAIR_EXIT_WP = {
+    Vector3.new(-5211.01, 40915.91, -3673.82), -- 1 พื้นรังข้างจุดไข่
+    Vector3.new(-5177.72, 40918.05, -3676.73), -- 2
+    Vector3.new(-5124.70, 40928.25, -3673.93), -- 3
+    Vector3.new(-5048.40, 40933.48, -3668.24), -- 4 ทางตรงยาว
+    Vector3.new(-4999.60, 40940.99, -3649.39), -- 5
+    Vector3.new(-4949.55, 40971.27, -3588.31), -- 6 โค้งขึ้น
+    Vector3.new(-4886.67, 40990.46, -3508.63), -- 7
+    Vector3.new(-4887.49, 41011.15, -3455.20), -- 8
+    Vector3.new(-4921.06, 41048.64, -3402.87), -- 9 หัวโค้งกลับ
+    Vector3.new(-4988.36, 41057.11, -3414.99), -- 10
+    Vector3.new(-5031.25, 41057.99, -3432.58), -- 11
+    Vector3.new(-5080.52, 41045.45, -3475.09), -- 12
+    Vector3.new(-5123.11, 41042.11, -3519.22), -- 13
+    Vector3.new(-5141.24, 41042.38, -3568.28), -- 14
+    Vector3.new(-5211.53, 41037.48, -3655.17), -- 15 โค้งกลับฝั่งรัง
+    Vector3.new(-5281.44, 41057.65, -3619.26), -- 16 ไต่ขึ้น
+    Vector3.new(-5266.24, 41058.47, -3586.96), -- 17
+    Vector3.new(-5264.86, 41132.23, -3580.96), -- 18 ขึ้นชั้นบน
+    Vector3.new(-5262.67, 41147.85, -3579.27), -- 19
+    Vector3.new(-5205.82, 41158.38, -3570.01), -- 20
+    Vector3.new(-5203.89, 41158.34, -3533.01), -- 21
+    Vector3.new(-5209.18, 41167.03, -3450.63), -- 22
+    Vector3.new(-5187.23, 41176.93, -3361.70), -- 23
+    Vector3.new(-4971.69, 41203.84, -3298.94), -- 24 ปลายทางไกล
+    Vector3.new(-4921.61, 41216.80, -3353.61), -- 25 หัวโค้งกลับบน
+    Vector3.new(-5007.15, 41236.02, -3418.17), -- 26
+    Vector3.new(-5024.15, 41255.32, -3456.48), -- 27
+    Vector3.new(-5035.04, 41272.61, -3507.58), -- 28 เข้าทางประตู
+    Vector3.new(-5013.81, 41278.73, -3567.32), -- 29
+    Vector3.new(-4975.75, 41291.44, -3636.59), -- 30 ใกล้ปากรู
+    Vector3.new(-4961.88, 41290.99, -3663.05), -- 31 ปากรู (ช้า!)
+    Vector3.new(-4881.39, 41290.24, -3718.06), -- 32 ทะลุออกประตูฝั่งนอกแล้ว
+}
+
+-- 🚪 ฟังก์ชันเดินเส้นทางออก (ใช้ทั้งตอนเก็บไข่จริง และปุ่มทดสอบ)
+local function runLairExitRoute()
+    return pcall(function()
+        local exitNoclip = runService.Stepped:Connect(function() -- 🔒 น็อคลิปต่อเนื่องตอนลอยออก กันโดนหินเด้ง
+            if player.Character then
+                for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
+            end
+        end)
+        local hrpX = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrpX then
+            for i, wp in ipairs(LAIR_EXIT_WP) do
+                -- 🚀 เร่งระดับสูง: ตามทางจริงทุกจุด (ไม่ลัดโค้ง) — ปรับเลขได้ตรงนี้ (ยิ่งมากยิ่งเร็ว)
+                local prevWp = LAIR_EXIT_WP[i - 1]
+                local segLen = prevWp and (wp - prevWp).Magnitude or 0
+                local spd = 300 -- ค่าฐาน (เดิม 130 → 200 → 300)
+                if i >= #LAIR_EXIT_WP - 2 then spd = 110 -- ปากประตู/ทะลุออก: คงไว้ ห้ามเร็วกว่านี้ (ทริกเกอร์ต้องยิงทัน)
+                elseif segLen > 0 and segLen < 40 then spd = 200 -- โค้งถี่ (เดิม 80 → 140 → 200)
+                elseif segLen >= 90 then spd = 400 end -- ทางตรงยาว (เดิม 170 → 260 → 400)
+                volcFlyTo(hrpX, wp, spd)
+            end
+        end
+        exitNoclip:Disconnect()
+    end)
+end
+
+-- 🚪 ปุ่มทดสอบทางเดินกลับ: วาปไปจุด 1 (พื้นรัง) แล้วบินเส้นทางออก 1→11 ทันที — ไม่ต้องรอไข่จริง
+-- (วางไว้หลัง runLairExitRoute เพื่อให้เห็นตัวแปรทุกตัว — ปุ่มยังโชว์ในแท็บ Shield & Opt ตำแหน่งเดิม)
+local exitTesting = false
+local exitTestBtn = Instance.new("TextButton")
+exitTestBtn.Size = UDim2.new(1, -16, 0, 32)
+exitTestBtn.Position = UDim2.new(0, 8, 0, 216)
+exitTestBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
+exitTestBtn.BackgroundTransparency = 0.3
+exitTestBtn.Text = "🚪 ทดสอบทางเดินกลับ (Lair Exit)"
+exitTestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitTestBtn.Font = Enum.Font.GothamBold
+exitTestBtn.TextSize = 9
+exitTestBtn.AutoButtonColor = true
+exitTestBtn.Parent = secRight
+Instance.new("UICorner", exitTestBtn).CornerRadius = UDim.new(0, 6)
+exitTestBtn.Activated:Connect(function()
+    if exitTesting then return end
+    local ch = player.Character; local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not hrp then exitTestBtn.Text = "❌ ไม่พบตัวละคร"; task.delay(1.5, function() if exitTestBtn and exitTestBtn.Parent then exitTestBtn.Text = "🚪 ทดสอบทางเดินกลับ (Lair Exit)" end end); return end
+    exitTesting = true
+    exitTestBtn.Text = "⏳ ทดสอบอยู่... (รัง→ประตู)"
+    hrp.CFrame = CFrame.new(LAIR_EXIT_WP[1]) -- วาปไปจุด 1 พื้นรังก่อน
+    hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+    task.wait(0.2)
+    runLairExitRoute()
+    local okEnd = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    local endPos = okEnd and string.format("(%.0f, %.0f, %.0f)", okEnd.Position.X, okEnd.Position.Y, okEnd.Position.Z) or "?"
+    exitTestBtn.Text = "✅ จบเส้นทาง " .. endPos
+    task.delay(3, function() if exitTestBtn and exitTestBtn.Parent then exitTestBtn.Text = "🚪 ทดสอบทางเดินกลับ (Lair Exit)" end end)
+    exitTesting = false
+end)
+
 local function grabAndReturn(egg)
     if isGrabbing then return end
     -- 🧪 ไข่จำลองเก็บไม่ได้จริง (เซิร์ฟเวอร์ไม่รู้จัก) แต่ "Volcanic ปลอม" ใช้ทดสอบทัวร์ประตู Lair ได้
@@ -1586,23 +1719,9 @@ local function grabAndReturn(egg)
             task.wait(0.08)
         end
         
-        -- 🚪 Volcanic: ลอยออกทางเดิม (ทะลุประตูกลับออกมา) ก่อนบินกลับบ้าน
+        -- 🚪 Volcanic: ออกจากรัง "เรียงตามจุดพิกัดจริง" ที่บันทึกไว้ (LAIR_EXIT_WP 1→11) แล้วค่อยบินกลับบ้าน
         if string.find(string.lower(eggName), "volcanic", 1, true) then
-            pcall(function()
-                local volc = workspace:FindFirstChild("Volcano")
-                local doorPart = volc and volc:FindFirstChild("VolcanoEntrance")
-                if doorPart and doorPart:IsA("BasePart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local exitNoclip = runService.Stepped:Connect(function() -- 🔒 น็อคลิปต่อเนื่องตอนลอยออก กันโดนหินเด้ง
-                        if player.Character then
-                            for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
-                        end
-                    end)
-                    local doorCF = doorPart.CFrame
-                    volcFlyTo(player.Character.HumanoidRootPart, doorCF.Position, 120) -- ลอยขึ้นเข้ากลางประตู
-                    volcFlyTo(player.Character.HumanoidRootPart, (doorCF * CFrame.new(0, 5, 15 * lairOutSign)).Position, 120) -- ลอยออกด้านนอกทางเดิม
-                    exitNoclip:Disconnect()
-                end
-            end)
+            runLairExitRoute()
         end
         
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
