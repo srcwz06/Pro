@@ -156,10 +156,10 @@ local homeCFrame = nil
 local activeBillboards = {}
 local lastRemoteCall = 0
 local tpMode = 3
-local flySpeed = 700
+local flySpeed = 1000
 local lairEnteredAt = 0; local lairEnteredChar = nil -- 🚪 จำว่าเพิ่งเดินผ่านประตู Lair (กันเข้าซ้ำทุกเที่ยว)
 local lairOutSign = -1 -- ทิศ "ด้านนอก" ของประตูที่ผ่านสำเร็จ (-1 หรือ 1) ไว้ใช้ตอนลอยออก
-local minFlySpeed, maxFlySpeed = 50, 700
+local minFlySpeed, maxFlySpeed = 50, 1000
 local isGrabbing = false
 
 local visitedServers = {}
@@ -499,7 +499,7 @@ local function createTabButton(id, titleText)
 end
 createTabButton("Farm", "🎯 Sniper")
 createTabButton("Security", "🛡️ Shield & Opt")
-createTabButton("Weather", "⏱️ Cycle")
+createTabButton("Weather", "🧪 ทดสอบ")
 
 local pageContainer = Instance.new("Frame")
 pageContainer.Size = UDim2.new(1, -16, 1, -80)
@@ -878,67 +878,6 @@ local function spawnFakeEgg(eggName)
     model:PivotTo(CFrame.new(pos))
     table.insert(fakeEggList, model)
 end
-local fakeBtn = Instance.new("TextButton")
-fakeBtn.Size = UDim2.new(1, -16, 0, 32)
-fakeBtn.Position = UDim2.new(0, 8, 0, 140)
-fakeBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
-fakeBtn.BackgroundTransparency = 0.3
-fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)"
-fakeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-fakeBtn.Font = Enum.Font.GothamBold
-fakeBtn.TextSize = 9
-fakeBtn.AutoButtonColor = true
-fakeBtn.Parent = secRight
-Instance.new("UICorner", fakeBtn).CornerRadius = UDim.new(0, 6)
-fakeBtn.Activated:Connect(function()
-    if #fakeEggList > 0 then
-        clearFakeEggs()
-        fakeBtn.Text = "🧪 ล้างไข่จำลองแล้ว (0)"
-    else
-        for _, name in ipairs(fakeEggOrder) do spawnFakeEgg(name) end
-        fakeBtn.Text = "🧪 เกิดแล้ว 5 ไข่ (กด = ลบ)"
-    end
-    task.delay(2, function() if not sg or not sg.Parent then return end; if #fakeEggList > 0 then fakeBtn.Text = "🧪 เกิดแล้ว " .. #fakeEggList .. " ไข่ (กด = ลบ)" else fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)" end end)
-end)
-
--- 📍 ปุ่มบันทึกพิกัดตัวเอง: กดครั้งไหน เก็บพิกัดจุดนั้นลง txt (ต่อท้ายเรื่อย ๆ กดได้หลายจุด) + คัดลอกให้คลิปบอร์ด
-local pinBtn = Instance.new("TextButton")
-pinBtn.Size = UDim2.new(1, -16, 0, 32)
-pinBtn.Position = UDim2.new(0, 8, 0, 178)
-pinBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
-pinBtn.BackgroundTransparency = 0.3
-pinBtn.Text = "📍 บันทึกพิกัดตัวเอง"
-pinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-pinBtn.Font = Enum.Font.GothamBold
-pinBtn.TextSize = 9
-pinBtn.AutoButtonColor = true
-pinBtn.Parent = secRight
-Instance.new("UICorner", pinBtn).CornerRadius = UDim.new(0, 6)
-pinBtn.Activated:Connect(function()
-    local ch = player.Character; local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-    if not hrp then pinBtn.Text = "❌ ไม่พบตัวละคร"; task.delay(1.5, function() if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง" end end); return end
-    local p = hrp.CFrame
-    local coords = string.format("%.2f, %.2f, %.2f", p.Position.X, p.Position.Y, p.Position.Z)
-    local look = string.format("%.2f, %.2f, %.2f", p.LookVector.X, p.LookVector.Y, p.LookVector.Z)
-    local line = string.format("[%s] pos=(%s) look=(%s)", os.date("%d/%m/%Y %H:%M:%S"), coords, look)
-    -- เขียนไฟล์: มีของเดิม → ต่อท้าย (กดได้หลายจุดสะสมในไฟล์เดียว) ไม่มี → สร้างใหม่พร้อมหัวไฟล์
-    local okFile, filePath = pcall(function()
-        if isfile and isfile("apex_pins.txt") then
-            local old = readfile("apex_pins.txt")
-            writefile("apex_pins.txt", old .. "\n" .. line)
-            return "apex_pins.txt (ต่อท้าย)"
-        end
-        writefile("apex_pins.txt", "-- 📍 พิกัดที่บันทึกจาก Apex Inspector PRO (จุดละบรรทัด)\n" .. line)
-        return "apex_pins.txt (ไฟล์ใหม่)"
-    end)
-    pcall(function() if setclipboard then setclipboard(coords) end end)
-    local savedMsg = okFile and tostring(filePath) or "คลิปบอร์ดอย่างเดียว (เขียนไฟล์ไม่ได้)"
-    pinBtn.Text = "✅ บันทึก: " .. coords
-    task.delay(2.5, function()
-        if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง (" .. savedMsg .. ")" end
-    end)
-end)
-
 local weatherPage = Instance.new("Frame")
 weatherPage.Size = UDim2.new(1, 0, 1, 0)
 weatherPage.BackgroundTransparency = 1
@@ -985,7 +924,69 @@ local weatherHeader = Instance.new("TextLabel")
 weatherHeader.Size = UDim2.new(1, -16, 0, 22)
 weatherHeader.Position = UDim2.new(0, 10, 0, 8)
 weatherHeader.BackgroundTransparency = 1
-weatherHeader.Text = "🌤️ WEATHER"
+weatherHeader.Text = "🧪 เมนูทดสอบ (TEST)"
+
+-- 🧪 ปุ่มจำลองไข่เกิด (ย้ายจาก Shield & Opt — โค้ดเดิมทุกอย่าง แค่เปลี่ยนที่อยู่/ตำแหน่ง)
+local fakeBtn = Instance.new("TextButton")
+fakeBtn.Size = UDim2.new(1, -16, 0, 32)
+fakeBtn.Position = UDim2.new(0, 8, 0, 128)
+fakeBtn.BackgroundColor3 = Color3.fromRGB(236, 72, 153)
+fakeBtn.BackgroundTransparency = 0.3
+fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)"
+fakeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fakeBtn.Font = Enum.Font.GothamBold
+fakeBtn.TextSize = 9
+fakeBtn.AutoButtonColor = true
+fakeBtn.Parent = wRight
+Instance.new("UICorner", fakeBtn).CornerRadius = UDim.new(0, 6)
+fakeBtn.Activated:Connect(function()
+    if #fakeEggList > 0 then
+        clearFakeEggs()
+        fakeBtn.Text = "🧪 ล้างไข่จำลองแล้ว (0)"
+    else
+        for _, name in ipairs(fakeEggOrder) do spawnFakeEgg(name) end
+        fakeBtn.Text = "🧪 เกิดแล้ว 5 ไข่ (กด = ลบ)"
+    end
+    task.delay(2, function() if not sg or not sg.Parent then return end; if #fakeEggList > 0 then fakeBtn.Text = "🧪 เกิดแล้ว " .. #fakeEggList .. " ไข่ (กด = ลบ)" else fakeBtn.Text = "🧪 จำลองไข่เกิด (เก็บไม่ได้)" end end)
+end)
+
+-- 📍 ปุ่มบันทึกพิกัดตัวเอง (ย้ายจาก Shield & Opt — โค้ดเดิมทุกอย่าง แค่เปลี่ยนที่อยู่/ตำแหน่ง): กดครั้งไหน เก็บพิกัดจุดนั้นลง txt (ต่อท้ายเรื่อย ๆ) + คัดลอกให้คลิปบอร์ด
+local pinBtn = Instance.new("TextButton")
+pinBtn.Size = UDim2.new(1, -16, 0, 32)
+pinBtn.Position = UDim2.new(0, 8, 0, 166)
+pinBtn.BackgroundColor3 = Color3.fromRGB(14, 165, 233)
+pinBtn.BackgroundTransparency = 0.3
+pinBtn.Text = "📍 บันทึกพิกัดตัวเอง"
+pinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+pinBtn.Font = Enum.Font.GothamBold
+pinBtn.TextSize = 9
+pinBtn.AutoButtonColor = true
+pinBtn.Parent = wRight
+Instance.new("UICorner", pinBtn).CornerRadius = UDim.new(0, 6)
+pinBtn.Activated:Connect(function()
+    local ch = player.Character; local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not hrp then pinBtn.Text = "❌ ไม่พบตัวละคร"; task.delay(1.5, function() if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง" end end); return end
+    local p = hrp.CFrame
+    local coords = string.format("%.2f, %.2f, %.2f", p.Position.X, p.Position.Y, p.Position.Z)
+    local look = string.format("%.2f, %.2f, %.2f", p.LookVector.X, p.LookVector.Y, p.LookVector.Z)
+    local line = string.format("[%s] pos=(%s) look=(%s)", os.date("%d/%m/%Y %H:%M:%S"), coords, look)
+    -- เขียนไฟล์: มีของเดิม → ต่อท้าย (กดได้หลายจุดสะสมในไฟล์เดียว) ไม่มี → สร้างใหม่พร้อมหัวไฟล์
+    local okFile, filePath = pcall(function()
+        if isfile and isfile("apex_pins.txt") then
+            local old = readfile("apex_pins.txt")
+            writefile("apex_pins.txt", old .. "\n" .. line)
+            return "apex_pins.txt (ต่อท้าย)"
+        end
+        writefile("apex_pins.txt", "-- 📍 พิกัดที่บันทึกจาก Apex Inspector PRO (จุดละบรรทัด)\n" .. line)
+        return "apex_pins.txt (ไฟล์ใหม่)"
+    end)
+    pcall(function() if setclipboard then setclipboard(coords) end end)
+    local savedMsg = okFile and tostring(filePath) or "คลิปบอร์ดอย่างเดียว (เขียนไฟล์ไม่ได้)"
+    pinBtn.Text = "✅ บันทึก: " .. coords
+    task.delay(2.5, function()
+        if pinBtn and pinBtn.Parent then pinBtn.Text = "📍 บันทึกพิกัดตัวเอง (" .. savedMsg .. ")" end
+    end)
+end)
 weatherHeader.TextColor3 = Color3.fromRGB(245, 158, 11)
 weatherHeader.Font = Enum.Font.GothamBold
 weatherHeader.TextSize = 11
@@ -1493,8 +1494,8 @@ end
 -- (วางไว้หลัง runLairExitRoute เพื่อให้เห็นตัวแปรทุกตัว — ปุ่มยังโชว์ในแท็บ Shield & Opt ตำแหน่งเดิม)
 local exitTesting = false
 local exitTestBtn = Instance.new("TextButton")
-exitTestBtn.Size = UDim2.new(1, -16, 0, 32)
-exitTestBtn.Position = UDim2.new(0, 8, 0, 216)
+exitTestBtn.Size = UDim2.new(1, -16, 0, 40)
+exitTestBtn.Position = UDim2.new(0, 8, 0, 36)
 exitTestBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
 exitTestBtn.BackgroundTransparency = 0.3
 exitTestBtn.Text = "🚪 ทดสอบทางเดินกลับ (Lair Exit)"
@@ -1502,7 +1503,7 @@ exitTestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 exitTestBtn.Font = Enum.Font.GothamBold
 exitTestBtn.TextSize = 9
 exitTestBtn.AutoButtonColor = true
-exitTestBtn.Parent = secRight
+exitTestBtn.Parent = wRight -- 🧪 อยู่ในแท็บ "ทดสอบ" แล้ว (ย้ายจาก Shield & Opt)
 Instance.new("UICorner", exitTestBtn).CornerRadius = UDim.new(0, 6)
 exitTestBtn.Activated:Connect(function()
     if exitTesting then return end
@@ -1520,6 +1521,152 @@ exitTestBtn.Activated:Connect(function()
     task.delay(3, function() if exitTestBtn and exitTestBtn.Parent then exitTestBtn.Text = "🚪 ทดสอบทางเดินกลับ (Lair Exit)" end end)
     exitTesting = false
 end)
+
+-- 🧪 ปุ่มทดสอบขาเข้า: เดินทางเดิมของ d3 (หน้าประตู → ทะลุรู → ลงรัง) — กดดูได้โดยไม่ต้องมีไข่
+local entryTesting = false
+local entryTestBtn = Instance.new("TextButton")
+entryTestBtn.Size = UDim2.new(1, -16, 0, 40)
+entryTestBtn.Position = UDim2.new(0, 8, 0, 82)
+entryTestBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
+entryTestBtn.BackgroundTransparency = 0.3
+entryTestBtn.Text = "↘️ ทดสอบขาเข้า (ประตู → รัง)"
+entryTestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+entryTestBtn.Font = Enum.Font.GothamBold
+entryTestBtn.TextSize = 9
+entryTestBtn.AutoButtonColor = true
+entryTestBtn.Parent = wRight
+Instance.new("UICorner", entryTestBtn).CornerRadius = UDim.new(0, 6)
+entryTestBtn.Activated:Connect(function()
+    if entryTesting then return end
+    local ch = player.Character; local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not hrp then entryTestBtn.Text = "❌ ไม่พบตัวละคร"; task.delay(1.5, function() if entryTestBtn and entryTestBtn.Parent then entryTestBtn.Text = "↘️ ทดสอบขาเข้า (ประตู → รัง)" end end); return end
+    entryTesting = true
+    entryTestBtn.Text = "⏳ ทดสอบอยู่... (ประตู→รัง)"
+    task.spawn(function()
+        pcall(function()
+            local volc = workspace:FindFirstChild("Volcano")
+            local doorPart = volc and volc:FindFirstChild("VolcanoEntrance")
+            if doorPart and doorPart:IsA("BasePart") then
+                local tourNoclip = runService.Stepped:Connect(function()
+                    if player.Character then
+                        for _, cp in pairs(player.Character:GetDescendants()) do if cp:IsA("BasePart") then cp.CanCollide = false end end
+                    end
+                end)
+                local doorCF = doorPart.CFrame
+                -- ลำดับเดียวกับขาเข้าจริงของ d3 (รอบ 1 ฝั่ง -Z)
+                hrp.CFrame = CFrame.new(doorCF * CFrame.new(0, -3, -40))
+                task.wait(0.1)
+                volcFlyTo(hrp, (doorCF * CFrame.new(0, 0, -30)).Position, 150)
+                volcFlyTo(hrp, (doorCF * CFrame.new(0, 0, -6)).Position, 100)
+                volcFlyTo(hrp, doorCF.Position, 90)
+                pcall(function() if firetouchinterest then firetouchinterest(hrp, doorPart, 0); firetouchinterest(hrp, doorPart, 1) end end)
+                volcFlyTo(hrp, (doorCF * CFrame.new(0, 5, 45)).Position, 90)
+                -- ลงไปหา "จุดเกิดไข่จริง" ในรัง (จุดเดิมที่โหมดเทส d3 ใช้)
+                pcall(function()
+                    local spF = workspace:FindFirstChild("EggSpawns")
+                    local spV = spF and spF:FindFirstChild("Volcanic")
+                    if spV and spV:IsA("BasePart") then volcFlyTo(hrp, spV.Position + Vector3.new(0, 4, 0), 200) end
+                end)
+                tourNoclip:Disconnect()
+            end
+        end)
+        local okEnd = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        local endPos = okEnd and string.format("(%.0f, %.0f, %.0f)", okEnd.Position.X, okEnd.Position.Y, okEnd.Position.Z) or "?"
+        entryTestBtn.Text = "✅ ถึงรัง " .. endPos
+        task.delay(3, function() if entryTestBtn and entryTestBtn.Parent then entryTestBtn.Text = "↘️ ทดสอบขาเข้า (ประตู → รัง)" end end)
+        entryTesting = false
+    end)
+end)
+
+-- 🌋 โหมดดรอปลาวา (DROP IN VOLCANO): สวิตช์เปิด/ปิด — เปิดไว้แล้ว TP ไข่ปกติ จะเปลี่ยนทางไปยอดปล่อง
+-- กด Drop in Volcano → รอไข่สุ่มกลับเข้ามือ (สัญญาณจบ) → บินกลับบ้านตามระบบปกติ (เวลานับเหมือนเดิม)
+-- จุดจากพิกัดจริงที่บันทึกด้วยปุ่ม 📍 (28/09 05:16) — จุด 4 = จุดยืนกดดรอปจริง
+local DIP_WP = {
+    Vector3.new(-4889.14, 41279.30, -3741.22), -- 1 เริ่มไต่ในเขา
+    Vector3.new(-4977.07, 41687.00, -3623.26), -- 2 ไต่สูงสุด
+    Vector3.new(-5078.04, 41580.33, -3447.32), -- 3 ลงมาชานปล่อง
+    Vector3.new(-5115.66, 41466.20, -3441.70), -- 4 จุดดรอป (ยืนกด "ทิ้งในภูเขาไฟ")
+}
+local dipEnabled = false -- สวิตช์หลัก (สลับด้วยปุ่ม)
+local dipRunning = false -- กันรันซ้อนระหว่างรอบดรอป
+local dipBtn = Instance.new("TextButton")
+dipBtn.Size = UDim2.new(1, -16, 0, 40)
+dipBtn.Position = UDim2.new(0, 8, 0, 204)
+dipBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
+dipBtn.BackgroundTransparency = 0.3
+dipBtn.Text = "🌋 ดรอปลาวา: ปิด"
+dipBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+dipBtn.Font = Enum.Font.GothamBold
+dipBtn.TextSize = 9
+dipBtn.AutoButtonColor = true
+dipBtn.Parent = wRight
+Instance.new("UICorner", dipBtn).CornerRadius = UDim.new(0, 6)
+dipBtn.Activated:Connect(function()
+    dipEnabled = not dipEnabled
+    if dipEnabled then
+        dipBtn.Text = "🌋 ดรอปลาวา: เปิด (TP = ไปดรอป)"
+        dipBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    else
+        dipBtn.Text = "🌋 ดรอปลาวา: ปิด"
+        dipBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
+    end
+end)
+
+-- 🌋 ลำดับดรอปที่จุดดรอปจริง (เรียกจาก grabAndReturn เมื่อเปิดสวิตช์): บิน 1→4 → กด "ทิ้งในภูเขาไฟ" → รอไข่หมุน → ไข่เด้งกลับเข้าตัว
+local function runVolcanoDip()
+    if dipRunning then return end
+    dipRunning = true
+    pcall(function()
+        local netFolder = rs:FindFirstChild("packages") and rs.packages:FindFirstChild("Net")
+        local volcDipRemote = netFolder and netFolder:FindFirstChild("RE/VolcanoDip")
+        local function heldEggName()
+            local chNow = player.Character
+            if chNow then for _, v in pairs(chNow:GetChildren()) do if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), "egg") then return v.Name end end end
+            return nil
+        end
+        -- 1) บินตามเส้นทางจริง 1→4 เร็ว 1000 (จุด 4 = จุดดรอป)
+        for i = 1, 4 do
+            local chNow = player.Character; local h = chNow and chNow:FindFirstChild("HumanoidRootPart")
+            if not h then return end
+            volcFlyTo(h, DIP_WP[i], 1000)
+        end
+        -- 2) กดดรอป "ทิ้งในภูเขาไฟ" เลียนแบบกดมือ: remote ก่อน → เว้น 1 วิ → กดปุ่ม UI
+        pcall(function() if volcDipRemote then volcDipRemote:FireServer() end end)
+        task.wait(1)
+        pcall(function()
+            local pg = player:FindFirstChild("PlayerGui")
+            local main = pg and pg:FindFirstChild("Main")
+            local holder = main and main:FindFirstChild("ActionsHolder")
+            local btn = holder and holder:FindFirstChild("DropEggVolcanoButton")
+            if btn and firesignal then firesignal(btn.Activated) end
+        end)
+        -- ยืนยัน UI อีกรอบถ้าเกมเด้ง Confirmation
+        pcall(function()
+            local pg = player:FindFirstChild("PlayerGui")
+            local main = pg and pg:FindFirstChild("Main")
+            local confirm = main and main:FindFirstChild("Confirmation")
+            local confirmBtn = confirm and confirm:FindFirstChild("Confirm")
+            if confirmBtn and confirmBtn.Visible and firesignal then firesignal(confirmBtn.Activated) end
+        end)
+        -- 3) รอลำดับอนิเมชันตามเกม: ไข่ออกจากมือ → หมุน ๆ กลางลาวา (รูป 2)
+        local pre = heldEggName()
+        local leftStart = os.clock()
+        while os.clock() - leftStart < 15 do
+            if not pre or not heldEggName() then break end -- ไข่ออกจากมือ = อนิเมชันเริ่ม
+            task.wait(0.25)
+        end
+        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 45 วิ
+        local waitStart = os.clock()
+        while os.clock() - waitStart < 45 do
+            if heldEggName() then break end
+            task.wait(0.25)
+        end
+        task.wait(0.8) -- เผื่ออนิเมชันรับไข่เล่นจบก่อนค่อยบินกลับ
+        local got = heldEggName()
+        if got then ensureEggInHand(got) end
+    end)
+    dipRunning = false
+end
 
 local function grabAndReturn(egg)
     if isGrabbing then return end
@@ -1719,9 +1866,15 @@ local function grabAndReturn(egg)
             task.wait(0.08)
         end
         
-        -- 🚪 Volcanic: ออกจากรัง "เรียงตามจุดพิกัดจริง" ที่บันทึกไว้ (LAIR_EXIT_WP 1→11) แล้วค่อยบินกลับบ้าน
-        if string.find(string.lower(eggName), "volcanic", 1, true) then
+        -- 🌋 ลำดับตอนเปิดดรอปลาวา: Volcanic บินออกถ้ำครบ 32 จุดก่อน → แล้วค่อยไต่ 1→4 ไปจุดดรอป
+        -- ไข่อื่น (เปิดดรอปไว้): ไต่ 1→4 ไปดรอปตรงเลย (ไม่ได้อยู่ในถ้ำ Lair)
+        -- ปกติ (สวิตช์ปิด): Volcanic ออกทาง 32 จุดแล้วบินกลับบ้าน / ไข่อื่นบินกลับบ้านเลย
+        local isVolcEgg = string.find(string.lower(eggName), "volcanic", 1, true) ~= nil
+        if isVolcEgg then
             runLairExitRoute()
+        end
+        if dipEnabled then
+            runVolcanoDip()
         end
         
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
