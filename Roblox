@@ -75,7 +75,6 @@ local eggPlacedRemote = gameRemotes and gameRemotes:FindFirstChild("EggPlaced")
 local basketDropRemote = gameRemotes and gameRemotes:FindFirstChild("BasketDrop")
 local eggCycleService = rs:FindFirstChild("GameServices") and rs.GameServices:FindFirstChild("EggCycle")
 
--- ตารางสีตามระดับ rarity ของเกม
 local RARITY_COLOR = {
     ["Secret"]    = Color3.fromRGB(234, 179, 8),
     ["Volcanic"]  = Color3.fromRGB(239, 68, 68),
@@ -88,7 +87,6 @@ local RARITY_COLOR = {
     ["Common"]    = Color3.fromRGB(156, 163, 175),
 }
 
--- ข้อมูลไข่ทั้งหมด + รูปภาพ
 local eggDataDict = {
     ["Solaris Egg"]   = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://131016816558781", Short = "Solaris" },
     ["Cherub Egg"]    = { Rarity = "Ethereal", Color = Color3.fromRGB(192, 132, 252), Image = "rbxassetid://78949206711037", Short = "Cherub" },
@@ -134,15 +132,9 @@ local eggList = {
 }
 
 local RARITY_RANK = {
-    ["Secret"]    = 9,
-    ["Volcanic"]  = 8,
-    ["Ethereal"]  = 7,
-    ["Divine"]    = 6,
-    ["Mythic"]    = 5,
-    ["Legendary"] = 4,
-    ["Epic"]      = 3,
-    ["Rare"]      = 2,
-    ["Common"]    = 1,
+    ["Secret"]    = 9, ["Volcanic"]  = 8, ["Ethereal"]  = 7,
+    ["Divine"]    = 6, ["Mythic"]    = 5, ["Legendary"] = 4,
+    ["Epic"]      = 3, ["Rare"]      = 2, ["Common"]    = 1,
 }
 local eggOrderIndex = {}
 for i, name in ipairs(eggList) do eggOrderIndex[name] = i end
@@ -153,26 +145,21 @@ table.sort(eggList, function(a, b)
     return (eggOrderIndex[a] or 0) < (eggOrderIndex[b] or 0)
 end)
 
--- อัพเดทตัวแปรระบบ (ตั้งค่าเริ่มต้นเป็นโหมดบิน 700 ทันทีที่เข้าเกม)
 local currentTargetEgg = nil 
 local selectedEggs = {} 
 local maxSelection = 50
 local eggButtons = {}
-local originalBtnColors = {}
 
 local isFarming = false
 local isMinimized = false
 local homeCFrame = nil
 local activeBillboards = {}
 local lastRemoteCall = 0
-local tpMode = 3 -- เริ่มต้นเป็น 3 = Fly TP คาไว้เลย
-local flySpeed = 700 -- ความเร็วเริ่มต้น 700
-local minFlySpeed, maxFlySpeed = 50, 700 -- ปรับได้สูงสุด 700
+local tpMode = 3
+local flySpeed = 700
+local minFlySpeed, maxFlySpeed = 50, 700
 local isGrabbing = false
 
--- -------------------------------------------------------------
--- Auto Server Hop Logic
--- -------------------------------------------------------------
 local visitedServers = {}
 local function hopLowPlayerServer()
     local placeId = game.PlaceId
@@ -205,9 +192,6 @@ local function hopLowPlayerServer()
     teleportService:Teleport(placeId, player)
 end
 
--- -------------------------------------------------------------
--- FPS Boost (Potato Mode) Logic
--- -------------------------------------------------------------
 local function enablePotatoMode()
     local lighting = game:GetService("Lighting")
     lighting.GlobalShadows = false
@@ -236,10 +220,7 @@ local function enablePotatoMode()
             end
         end
     end
-    
-    pcall(function()
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    end)
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
 end
 
 -- -------------------------------------------------------------
@@ -250,6 +231,20 @@ sg.Name = "ApexEggHubShield"
 sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = parentGui
+
+-- 🔊 ตั้งค่าระบบเสียงแจ้งเตือน
+local alertSound = Instance.new("Sound")
+alertSound.SoundId = "rbxassetid://124788478819228"
+alertSound.Looped = true
+alertSound.Volume = 2
+alertSound.Parent = sg
+
+-- 🔔 แจ้งเตือนเฉพาะไข่ 3 ชนิดนี้ ที่เกิดตามธรรมชาติในแมพเท่านั้น
+local ALERT_EGG_WHITELIST = {
+    ["Volcanic Egg"] = true,
+    ["Cherub Egg"]   = true,
+    ["Solaris Egg"]  = true,
+}
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 520, 0, 330)
@@ -267,6 +262,54 @@ mainStroke.Color = Color3.fromRGB(160, 180, 220)
 mainStroke.Thickness = 1.4
 mainStroke.Transparency = 0.3
 
+-- 💥 Popup แจ้งเตือน UI
+local popupFrame = Instance.new("Frame")
+popupFrame.Size = UDim2.new(0, 280, 0, 140)
+popupFrame.Position = UDim2.new(0.5, -140, 0.5, -70)
+popupFrame.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+popupFrame.BorderSizePixel = 0
+popupFrame.Visible = false
+popupFrame.ZIndex = 50
+popupFrame.Parent = sg
+Instance.new("UICorner", popupFrame).CornerRadius = UDim.new(0, 10)
+local popupStroke = Instance.new("UIStroke", popupFrame)
+popupStroke.Color = Color3.fromRGB(239, 68, 68)
+popupStroke.Thickness = 2
+
+local popupTitle = Instance.new("TextLabel")
+popupTitle.Size = UDim2.new(1, 0, 0, 35)
+popupTitle.BackgroundTransparency = 1
+popupTitle.Text = "⚠️ ระบบแจ้งเตือน ⚠️"
+popupTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+popupTitle.Font = Enum.Font.GothamBold
+popupTitle.TextSize = 16
+popupTitle.ZIndex = 51
+popupTitle.Parent = popupFrame
+
+local popupMsg = Instance.new("TextLabel")
+popupMsg.Size = UDim2.new(1, -20, 0, 50)
+popupMsg.Position = UDim2.new(0, 10, 0, 35)
+popupMsg.BackgroundTransparency = 1
+popupMsg.Text = "พบไข่เป้าหมายแล้ว!"
+popupMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+popupMsg.Font = Enum.Font.Gotham
+popupMsg.TextSize = 14
+popupMsg.TextWrapped = true
+popupMsg.ZIndex = 51
+popupMsg.Parent = popupFrame
+
+local popupBtn = Instance.new("TextButton")
+popupBtn.Size = UDim2.new(0, 120, 0, 32)
+popupBtn.Position = UDim2.new(0.5, -60, 1, -40)
+popupBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+popupBtn.Text = "รับทราบ"
+popupBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+popupBtn.Font = Enum.Font.GothamBold
+popupBtn.TextSize = 14
+popupBtn.ZIndex = 51
+popupBtn.Parent = popupFrame
+Instance.new("UICorner", popupBtn).CornerRadius = UDim.new(0, 6)
+
 -- Dragging System
 local dragging, dragInput, dragStart, startPos
 local header = Instance.new("Frame")
@@ -279,19 +322,15 @@ header.Parent = mainFrame
 
 header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
+        dragging = true; dragStart = input.Position; startPos = mainFrame.Position
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then dragging = false end
         end)
     end
 end)
-
 header.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
 end)
-
 uis.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         local delta = input.Position - dragStart
@@ -365,7 +404,6 @@ local function createTabButton(id, titleText)
     tabButtons[id] = btn
     return btn
 end
-
 createTabButton("Farm", "🎯 Sniper")
 createTabButton("Security", "🛡️ Shield & Opt")
 createTabButton("Weather", "⏱️ Cycle")
@@ -376,7 +414,6 @@ pageContainer.Position = UDim2.new(0, 8, 0, 76)
 pageContainer.BackgroundTransparency = 1
 pageContainer.Parent = mainFrame
 
--- TAB 1: SNIPER
 local farmPage = Instance.new("Frame")
 farmPage.Size = UDim2.new(1, 0, 1, 0)
 farmPage.BackgroundTransparency = 1
@@ -404,7 +441,6 @@ eggGridLayout.CellSize = UDim2.new(0, 66, 0, 76)
 eggGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
 eggGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 eggGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
 eggGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     eggScroll.CanvasSize = UDim2.new(0, 0, 0, eggGridLayout.AbsoluteContentSize.Y + 12)
 end)
@@ -529,7 +565,6 @@ local row2 = createBtnRow()
 local homeBtn = createActionBtn("🏠 Set Base", Color3.fromRGB(80, 95, 120), row2, 0, 0.48)
 local modeBtn = createActionBtn("🕊️ Fly TP: ON", Color3.fromRGB(16, 185, 129), row2, 0.52, 0.48)
 
--- หลอดปรับความเร็วการลอยกลับบ้าน (สูงสุด 700, เริ่มต้น 700)
 local sliderRow = createBtnRow()
 sliderRow.Size = UDim2.new(1, 0, 0, 26)
 sliderRow.BackgroundColor3 = Color3.fromRGB(70, 80, 100)
@@ -559,7 +594,6 @@ local initialRatio = math.clamp((flySpeed - minFlySpeed) / (maxFlySpeed - minFly
 local sliderFill = Instance.new("Frame")
 sliderFill.Size = UDim2.new(initialRatio, 0, 1, 0)
 sliderFill.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-sliderFill.BorderSizePixel = 0
 sliderFill.Parent = sliderBar
 Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
 
@@ -567,7 +601,6 @@ local sliderKnob = Instance.new("Frame")
 sliderKnob.Size = UDim2.new(0, 14, 0, 14)
 sliderKnob.Position = UDim2.new(initialRatio, -7, 0.5, -7)
 sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-sliderKnob.BorderSizePixel = 0
 sliderKnob.Parent = sliderBar
 Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
 
@@ -582,19 +615,12 @@ local function updateFlySpeedFromInput(inputPosX)
     sliderKnob.Position = UDim2.new(ratio, -7, 0.5, -7)
     speedLabel.Text = "🕊️ Speed: " .. tostring(flySpeed)
 end
-
 sliderRow.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingSlider = true
-        updateFlySpeedFromInput(input.Position.X)
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                draggingSlider = false
-            end
-        end)
+        draggingSlider = true; updateFlySpeedFromInput(input.Position.X)
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then draggingSlider = false end end)
     end
 end)
-
 uis.InputChanged:Connect(function(input)
     if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         updateFlySpeedFromInput(input.Position.X)
@@ -603,9 +629,11 @@ end)
 
 local row3 = createBtnRow()
 row3.Size = UDim2.new(1, 0, 0, 30)
-local farmBtn = createActionBtn("⚡ AUTO FARM", Color3.fromRGB(16, 185, 129), row3, 0, 1)
+local farmBtn = createActionBtn("⚡ AUTO FARM", Color3.fromRGB(16, 185, 129), row3, 0, 0.48)
 
--- TAB 2 & 3 Setup (Security & Weather)
+-- 🔔 ปุ่มเปิด/ปิดแจ้งเตือน (เพิ่มเข้ามาใหม่)
+local notifyBtn = createActionBtn("🔔 แจ้งเตือน: ปิด", Color3.fromRGB(239, 68, 68), row3, 0.52, 0.48)
+
 local secPage = Instance.new("Frame")
 secPage.Size = UDim2.new(1, 0, 1, 0)
 secPage.BackgroundTransparency = 1
@@ -675,11 +703,7 @@ hopBtn.TextSize = 9
 hopBtn.AutoButtonColor = true
 hopBtn.Parent = secRight
 Instance.new("UICorner", hopBtn).CornerRadius = UDim.new(0, 6)
-
-hopBtn.Activated:Connect(function()
-    hopBtn.Text = "🔄 Finding..."
-    hopLowPlayerServer()
-end)
+hopBtn.Activated:Connect(function() hopBtn.Text = "🔄 Finding..."; hopLowPlayerServer() end)
 
 local fpsBtn = Instance.new("TextButton")
 fpsBtn.Size = UDim2.new(1, -16, 0, 32)
@@ -693,12 +717,7 @@ fpsBtn.TextSize = 9
 fpsBtn.AutoButtonColor = true
 fpsBtn.Parent = secRight
 Instance.new("UICorner", fpsBtn).CornerRadius = UDim.new(0, 6)
-
-fpsBtn.Activated:Connect(function()
-    fpsBtn.Text = "✅ Boosted!"
-    fpsBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-    enablePotatoMode()
-end)
+fpsBtn.Activated:Connect(function() fpsBtn.Text = "✅ Boosted!"; fpsBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129); enablePotatoMode() end)
 
 local rejoinBtn = Instance.new("TextButton")
 rejoinBtn.Size = UDim2.new(1, -16, 0, 32)
@@ -712,16 +731,10 @@ rejoinBtn.TextSize = 9
 rejoinBtn.AutoButtonColor = true
 rejoinBtn.Parent = secRight
 Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 6)
-
 rejoinBtn.Activated:Connect(function()
     rejoinBtn.Text = "⏳ Rejoining..."
-    if #game:GetService("Players"):GetPlayers() <= 1 then
-        player:Kick("Rejoining...")
-        task.wait(0.5)
-        teleportService:Teleport(game.PlaceId, player)
-    else
-        teleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
-    end
+    if #game:GetService("Players"):GetPlayers() <= 1 then player:Kick("Rejoining..."); task.wait(0.5); teleportService:Teleport(game.PlaceId, player)
+    else teleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player) end
 end)
 
 local weatherPage = Instance.new("Frame")
@@ -781,21 +794,14 @@ local function switchTab(tabId)
     for id, page in pairs(tabs) do page.Visible = (id == tabId) end
     for id, btn in pairs(tabButtons) do
         if id == tabId then
-            btn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-            btn.BackgroundTransparency = 0.2
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.BackgroundColor3 = Color3.fromRGB(59, 130, 246); btn.BackgroundTransparency = 0.2; btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         else
-            btn.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
-            btn.BackgroundTransparency = 0.4
-            btn.TextColor3 = Color3.fromRGB(210, 220, 240)
+            btn.BackgroundColor3 = Color3.fromRGB(80, 95, 120); btn.BackgroundTransparency = 0.4; btn.TextColor3 = Color3.fromRGB(210, 220, 240)
         end
     end
 end
-for id, btn in pairs(tabButtons) do
-    btn.Activated:Connect(function() switchTab(id) end)
-end
+for id, btn in pairs(tabButtons) do btn.Activated:Connect(function() switchTab(id) end) end
 
--- Resize Logic
 local resizeHandle = Instance.new("Frame")
 resizeHandle.Size = UDim2.new(0, 18, 0, 18)
 resizeHandle.Position = UDim2.new(1, -18, 1, -18)
@@ -805,31 +811,18 @@ resizeHandle.BorderSizePixel = 0
 resizeHandle.ZIndex = 10
 resizeHandle.Parent = mainFrame
 Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 6)
-
 local resizeIcon = Instance.new("TextLabel")
-resizeIcon.Size = UDim2.new(1, 0, 1, 0)
-resizeIcon.BackgroundTransparency = 1
-resizeIcon.Text = "◢"
-resizeIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
-resizeIcon.Font = Enum.Font.GothamBold
-resizeIcon.TextSize = 12
-resizeIcon.ZIndex = 11
-resizeIcon.Parent = resizeHandle
+resizeIcon.Size = UDim2.new(1, 0, 1, 0); resizeIcon.BackgroundTransparency = 1; resizeIcon.Text = "◢"
+resizeIcon.TextColor3 = Color3.fromRGB(255, 255, 255); resizeIcon.Font = Enum.Font.GothamBold; resizeIcon.TextSize = 12
+resizeIcon.ZIndex = 11; resizeIcon.Parent = resizeHandle
 
-local resizing = false
-local resizeStartPos, resizeStartSize
-
+local resizing, resizeStartPos, resizeStartSize = false, nil, nil
 resizeHandle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        resizing = true
-        resizeStartPos = input.Position
-        resizeStartSize = mainFrame.AbsoluteSize
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then resizing = false end
-        end)
+        resizing = true; resizeStartPos = input.Position; resizeStartSize = mainFrame.AbsoluteSize
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then resizing = false end end)
     end
 end)
-
 uis.InputChanged:Connect(function(input)
     if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - resizeStartPos
@@ -850,8 +843,7 @@ end)
 -- Inspector & Parse
 -- -------------------------------------------------------------
 local function findAutoPlotCFrame()
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local char = player.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local pn = player.Name
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("TextLabel") and obj.Text:find(pn) then
@@ -872,6 +864,8 @@ end
 local function isWildEgg(item)
     local curr = item.Parent
     while curr and curr ~= workspace do
+        -- ข้ามไข่จำลองจากปุ่ม 👁️ View Target / 👁️ View Hvy (parent ไว้ที่ CurrentCamera)
+        if curr:IsA("Camera") then return false end
         local n = string.lower(curr.Name)
         if n:find("plot") or n:find("nest") or n:find("base") or curr:FindFirstChild("Humanoid") then return false end
         curr = curr.Parent
@@ -886,7 +880,6 @@ local function parseEggWeight(egg)
         local lk = string.lower(k)
         if (lk == "weight" or lk == "multiplier" or lk == "mass" or lk == "kg") and type(v) == "number" then return v end
     end
-
     for _, v in pairs(egg:GetDescendants()) do
         if v:IsA("NumberValue") or v:IsA("IntValue") then
             local n = string.lower(v.Name)
@@ -910,7 +903,6 @@ local function parseEggWeight(egg)
         end
     end
     if maxFoundWeight > 0 then return maxFoundWeight end
-
     local part = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
     if part then
         local vol = part.Size.X * part.Size.Y * part.Size.Z
@@ -934,46 +926,28 @@ local function createTextESPOnly(egg, part, isHeaviest)
     if isHeaviest then themeColor = Color3.fromRGB(234, 179, 8) end
     
     local bg = Instance.new("BillboardGui")
-    bg.Adornee = part
-    bg.Size = UDim2.new(0, 200, 0, 45)
-    bg.AlwaysOnTop = true
-    bg.StudsOffset = Vector3.new(0, 2.5, 0)
-    bg.Parent = espFolder
+    bg.Adornee = part; bg.Size = UDim2.new(0, 200, 0, 45); bg.AlwaysOnTop = true
+    bg.StudsOffset = Vector3.new(0, 2.5, 0); bg.Parent = espFolder
     
     local nameLbl = Instance.new("TextLabel")
-    nameLbl.Size = UDim2.new(1, 0, 0, 15)
-    nameLbl.BackgroundTransparency = 1
+    nameLbl.Size = UDim2.new(1, 0, 0, 15); nameLbl.BackgroundTransparency = 1
     nameLbl.TextColor3 = isHeaviest and Color3.fromRGB(255, 220, 50) or themeColor
-    nameLbl.TextStrokeTransparency = 0.2
-    nameLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLbl.TextStrokeTransparency = 0.2; nameLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     nameLbl.Text = (isHeaviest and "👑 " or "✨ ") .. egg.Name .. " [" .. tierName .. "]"
-    nameLbl.Font = Enum.Font.GothamBold
-    nameLbl.TextSize = 12
-    nameLbl.Parent = bg
+    nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 12; nameLbl.Parent = bg
     
     local weightLbl = Instance.new("TextLabel")
-    weightLbl.Size = UDim2.new(1, 0, 0, 15)
-    weightLbl.Position = UDim2.new(0, 0, 0, 15)
-    weightLbl.BackgroundTransparency = 1
-    weightLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
-    weightLbl.TextStrokeTransparency = 0.2
-    weightLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    weightLbl.Text = "⚖️ " .. getFormattedWeight(egg)
-    weightLbl.Font = Enum.Font.GothamBold
-    weightLbl.TextSize = 11
-    weightLbl.Parent = bg
+    weightLbl.Size = UDim2.new(1, 0, 0, 15); weightLbl.Position = UDim2.new(0, 0, 0, 15)
+    weightLbl.BackgroundTransparency = 1; weightLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+    weightLbl.TextStrokeTransparency = 0.2; weightLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    weightLbl.Text = "⚖️ " .. getFormattedWeight(egg); weightLbl.Font = Enum.Font.GothamBold
+    weightLbl.TextSize = 11; weightLbl.Parent = bg
     
     local distLbl = Instance.new("TextLabel")
-    distLbl.Size = UDim2.new(1, 0, 0, 15)
-    distLbl.Position = UDim2.new(0, 0, 0, 30)
-    distLbl.BackgroundTransparency = 1
-    distLbl.TextColor3 = Color3.fromRGB(0, 229, 255)
-    distLbl.TextStrokeTransparency = 0.2
-    distLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    distLbl.Text = "📍 ..."
-    distLbl.Font = Enum.Font.GothamBold
-    distLbl.TextSize = 11
-    distLbl.Parent = bg
+    distLbl.Size = UDim2.new(1, 0, 0, 15); distLbl.Position = UDim2.new(0, 0, 0, 30)
+    distLbl.BackgroundTransparency = 1; distLbl.TextColor3 = Color3.fromRGB(0, 229, 255)
+    distLbl.TextStrokeTransparency = 0.2; distLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    distLbl.Text = "📍 ..."; distLbl.Font = Enum.Font.GothamBold; distLbl.TextSize = 11; distLbl.Parent = bg
     
     table.insert(activeBillboards, {Label = distLbl, Part = part})
 end
@@ -981,23 +955,16 @@ end
 local function scanAndInspect()
     local selectedMatches = {}
     local heaviestEgg, maxW = nil, -1
-    
     for _, item in pairs(workspace:GetDescendants()) do
         if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) then
             local isKnown = false
             for _, en in ipairs(eggList) do
                 if string.find(string.lower(item.Name), string.lower(en)) then isKnown = true break end
             end
-            
             if isKnown then
                 local w = parseEggWeight(item)
-                if w > maxW then
-                    maxW = w
-                    heaviestEgg = item
-                elseif w == 0 and maxW == -1 then
-                    heaviestEgg = item
-                end
-                
+                if w > maxW then maxW = w; heaviestEgg = item
+                elseif w == 0 and maxW == -1 then heaviestEgg = item end
                 if currentTargetEgg and string.find(string.lower(item.Name), string.lower(currentTargetEgg)) then
                     table.insert(selectedMatches, item)
                 end
@@ -1014,26 +981,20 @@ local function scanForFarmQueue()
             for _, en in ipairs(eggList) do
                 if string.find(string.lower(item.Name), string.lower(en)) then 
                     if not eggsByName[en] then eggsByName[en] = {} end
-                    table.insert(eggsByName[en], item)
-                    break 
+                    table.insert(eggsByName[en], item); break 
                 end
             end
         end
     end
-    
     for index, queueName in ipairs(selectedEggs) do
-        if eggsByName[queueName] and #eggsByName[queueName] > 0 then
-            return eggsByName[queueName][1], index
-        end
+        if eggsByName[queueName] and #eggsByName[queueName] > 0 then return eggsByName[queueName][1], index end
     end
     return nil, nil
 end
 
 local function updateInspectorESP()
     clearESP()
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    
+    local myChar = player.Character; local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local selectedMatches, heaviestEgg = scanAndInspect()
     
     if heaviestEgg then
@@ -1043,19 +1004,17 @@ local function updateInspectorESP()
         heavyInfo.Text = string.format("W: <font color=\"#F59E0B\"><b>%s</b></font> | Dist: <b>%dm</b>", getFormattedWeight(heaviestEgg), dist)
         if p then createTextESPOnly(heaviestEgg, p, true) end
     else
-        heavyTitle.Text = "👑 HEAVIEST: <font color=\"#EF4444\">Not Found</font>"
-        heavyInfo.Text = "Weight: - | Dist: -"
+        heavyTitle.Text = "👑 HEAVIEST: <font color=\"#EF4444\">Not Found</font>"; heavyInfo.Text = "Weight: - | Dist: -"
     end
     
     if currentTargetEgg then
         if #selectedMatches > 0 then
-            local nearestDist = math.huge
-            local bestMatch = selectedMatches[1]
+            local nearestDist = math.huge; local bestMatch = selectedMatches[1]
             for _, egg in pairs(selectedMatches) do
                 local p = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
                 if p then
                     local d = myHRP and math.floor((myHRP.Position - p.Position).Magnitude) or 0
-                    if d < nearestDist then nearestDist = d bestMatch = egg end
+                    if d < nearestDist then nearestDist = d; bestMatch = egg end
                     if egg ~= heaviestEgg then createTextESPOnly(egg, p, false) end
                 end
             end
@@ -1066,30 +1025,19 @@ local function updateInspectorESP()
     end
 end
 
--- พรีวิวไข่ที่ยังไม่มีรูป
 local eggPreviewCache = {}
 local function getEggPreviewModel(eggName)
     if eggPreviewCache[eggName] ~= nil then return eggPreviewCache[eggName] end
     local model = nil
     pcall(function()
-        local assets = rs:FindFirstChild("Assets")
-        local eggsFolder = assets and assets:FindFirstChild("Eggs")
+        local assets = rs:FindFirstChild("Assets"); local eggsFolder = assets and assets:FindFirstChild("Eggs")
         local template = eggsFolder and eggsFolder:FindFirstChild(eggName)
         if template and template:IsA("Model") then
             model = template:Clone()
             for _, v in pairs(model:GetDescendants()) do
-                if v:IsA("Script") or v:IsA("LocalScript") then
-                    v:Destroy()
-                elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("Highlight") then
-                    v:Destroy()
-                elseif v:IsA("BasePart") then
-                    v.Anchored = true
-                    v.CanCollide = false
-                    v.CanQuery = false
-                    v.CanTouch = false
-                elseif v:IsA("ParticleEmitter") or v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then
-                    v.Enabled = false
-                end
+                if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("Highlight") then v:Destroy()
+                elseif v:IsA("BasePart") then v.Anchored = true; v.CanCollide = false; v.CanQuery = false; v.CanTouch = false
+                elseif v:IsA("ParticleEmitter") or v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then v.Enabled = false end
             end
         end
     end)
@@ -1102,21 +1050,10 @@ local function createEggPreview(parent, eggName)
     if not model then return nil end
     local ok, frame = pcall(function()
         local vp = Instance.new("ViewportFrame")
-        vp.Size = UDim2.new(1, -8, 1, -26)
-        vp.Position = UDim2.new(0, 4, 0, 3)
-        vp.BackgroundTransparency = 1
-        vp.Ambient = Color3.fromRGB(215, 215, 225)
-        vp.LightColor = Color3.fromRGB(255, 255, 255)
-        vp.LightDirection = Vector3.new(-0.4, -1, -0.6)
-        vp.Parent = parent
-
-        model.Parent = vp
-
-        local cam = Instance.new("Camera")
-        cam.FieldOfView = 40
-        cam.Parent = vp
-        vp.CurrentCamera = cam
-
+        vp.Size = UDim2.new(1, -8, 1, -26); vp.Position = UDim2.new(0, 4, 0, 3); vp.BackgroundTransparency = 1
+        vp.Ambient = Color3.fromRGB(215, 215, 225); vp.LightColor = Color3.fromRGB(255, 255, 255)
+        vp.LightDirection = Vector3.new(-0.4, -1, -0.6); vp.Parent = parent; model.Parent = vp
+        local cam = Instance.new("Camera"); cam.FieldOfView = 40; cam.Parent = vp; vp.CurrentCamera = cam
         local cf, size = model:GetBoundingBox()
         local maxDim = math.max(size.X, size.Y, size.Z)
         if not maxDim or maxDim <= 0 then maxDim = 1 end
@@ -1132,74 +1069,44 @@ for i, eggName in ipairs(eggList) do
     local data = eggDataDict[eggName] or { Color = Color3.fromRGB(156, 163, 175), Short = eggName, Image = "" }
     
     local b = Instance.new("ImageButton")
-    b.Size = UDim2.new(0, 66, 0, 76)
-    b.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
-    b.BackgroundTransparency = 0.4
-    b.LayoutOrder = i
-    b.AutoButtonColor = true
-    b.Parent = eggScroll
+    b.Size = UDim2.new(0, 66, 0, 76); b.BackgroundColor3 = Color3.fromRGB(80, 95, 120); b.BackgroundTransparency = 0.4
+    b.LayoutOrder = i; b.AutoButtonColor = true; b.Parent = eggScroll
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
     
-    local stroke = Instance.new("UIStroke", b)
-    stroke.Color = data.Color
-    stroke.Thickness = 1.2
+    local stroke = Instance.new("UIStroke", b); stroke.Color = data.Color; stroke.Thickness = 1.2
     
     local img = Instance.new("ImageLabel", b)
-    img.Size = UDim2.new(1, -12, 1, -26)
-    img.Position = UDim2.new(0, 6, 0, 4)
-    img.BackgroundTransparency = 1
-    img.Image = data.Image
-    img.ScaleType = Enum.ScaleType.Fit
+    img.Size = UDim2.new(1, -12, 1, -26); img.Position = UDim2.new(0, 6, 0, 4); img.BackgroundTransparency = 1
+    img.Image = data.Image; img.ScaleType = Enum.ScaleType.Fit
     
     local nameLbl = Instance.new("TextLabel", b)
-    nameLbl.Size = UDim2.new(1, -4, 0, 16)
-    nameLbl.Position = UDim2.new(0, 2, 1, -18)
-    nameLbl.BackgroundTransparency = 1
-    nameLbl.Text = data.Short
-    nameLbl.TextColor3 = data.Color
-    nameLbl.Font = Enum.Font.GothamBold
-    nameLbl.TextSize = 10
-    nameLbl.TextScaled = true
+    nameLbl.Size = UDim2.new(1, -4, 0, 16); nameLbl.Position = UDim2.new(0, 2, 1, -18); nameLbl.BackgroundTransparency = 1
+    nameLbl.Text = data.Short; nameLbl.TextColor3 = data.Color; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 10; nameLbl.TextScaled = true
 
     if not data.Image or data.Image == "" then
         img.Visible = false
-        if not createEggPreview(b, eggName) then
-            nameLbl.Size = UDim2.new(1, -4, 1, -8)
-            nameLbl.Position = UDim2.new(0, 2, 0, 4)
-        end
+        if not createEggPreview(b, eggName) then nameLbl.Size = UDim2.new(1, -4, 1, -8); nameLbl.Position = UDim2.new(0, 2, 0, 4) end
     end
     
     local badge = Instance.new("Frame", b)
-    badge.Size = UDim2.new(0, 18, 0, 18)
-    badge.Position = UDim2.new(1, -12, 0, -6)
-    badge.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-    badge.Visible = false
+    badge.Size = UDim2.new(0, 18, 0, 18); badge.Position = UDim2.new(1, -12, 0, -6); badge.BackgroundColor3 = Color3.fromRGB(16, 185, 129); badge.Visible = false
     Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
     
     local queueTxt = Instance.new("TextLabel", badge)
-    queueTxt.Size = UDim2.new(1, 0, 1, 0)
-    queueTxt.BackgroundTransparency = 1
-    queueTxt.Text = "1"
-    queueTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
-    queueTxt.Font = Enum.Font.GothamBold
-    queueTxt.TextSize = 10
+    queueTxt.Size = UDim2.new(1, 0, 1, 0); queueTxt.BackgroundTransparency = 1; queueTxt.Text = "1"
+    queueTxt.TextColor3 = Color3.fromRGB(255, 255, 255); queueTxt.Font = Enum.Font.GothamBold; queueTxt.TextSize = 10
     
     eggButtons[eggName] = { Button = b, Stroke = stroke, Badge = badge, QueueTxt = queueTxt, BaseColor = data.Color }
     
-    local pressStartPos = nil
-    local isPressing = false
-
+    local pressStartPos = nil; local isPressing = false
     b.Activated:Connect(function()
         currentTargetEgg = eggName
         targetLabel.Text = "🎯 TARGET: <font color=\"#60A5FA\"><b>" .. data.Short .. "</b></font>"
         updateInspectorESP()
     end)
-
     b.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isPressing = true
-            pressStartPos = input.Position
-
+            isPressing = true; pressStartPos = input.Position
             task.delay(3, function()
                 if isPressing then
                     isPressing = false 
@@ -1207,213 +1114,111 @@ for i, eggName in ipairs(eggList) do
                     if idx then table.remove(selectedEggs, idx) else
                         if #selectedEggs < maxSelection then table.insert(selectedEggs, eggName) end
                     end
-                    
                     for eName, btnObj in pairs(eggButtons) do
                         local currentIdx = table.find(selectedEggs, eName)
                         if currentIdx then
-                            btnObj.QueueTxt.Text = tostring(currentIdx)
-                            btnObj.Badge.Visible = true
-                            btnObj.Stroke.Color = Color3.fromRGB(16, 185, 129)
-                            btnObj.Stroke.Thickness = 2.5
-                            btnObj.Button.BackgroundColor3 = Color3.fromRGB(20, 36, 30)
-                            btnObj.Button.BackgroundTransparency = 0.2
+                            btnObj.QueueTxt.Text = tostring(currentIdx); btnObj.Badge.Visible = true; btnObj.Stroke.Color = Color3.fromRGB(16, 185, 129); btnObj.Stroke.Thickness = 2.5; btnObj.Button.BackgroundColor3 = Color3.fromRGB(20, 36, 30); btnObj.Button.BackgroundTransparency = 0.2
                         else
-                            btnObj.Badge.Visible = false
-                            btnObj.Stroke.Color = btnObj.BaseColor
-                            btnObj.Stroke.Thickness = 1.2
-                            btnObj.Button.BackgroundColor3 = Color3.fromRGB(80, 95, 120)
-                            btnObj.Button.BackgroundTransparency = 0.4
+                            btnObj.Badge.Visible = false; btnObj.Stroke.Color = btnObj.BaseColor; btnObj.Stroke.Thickness = 1.2; btnObj.Button.BackgroundColor3 = Color3.fromRGB(80, 95, 120); btnObj.Button.BackgroundTransparency = 0.4
                         end
                     end
-                    
-                    if #selectedEggs == 0 and isFarming then
-                        isFarming = false
-                        farmBtn.Text = "⚡ AUTO FARM"
-                        farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-                    end
+                    if #selectedEggs == 0 and isFarming then isFarming = false; farmBtn.Text = "⚡ AUTO FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) end
                 end
             end)
         end
     end)
-
     b.InputChanged:Connect(function(input)
         if isPressing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             if pressStartPos and (input.Position - pressStartPos).Magnitude > 15 then isPressing = false end
         end
     end)
-
     b.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isPressing = false 
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isPressing = false end
     end)
 end
 
--- ===========================================================
--- ดึงไข่มาดูตรงหน้า (Local)
--- ===========================================================
-local isSpectating = false
-local localEggClone = nil
-
+local isSpectating = false; local localEggClone = nil
 local function stopSpectating()
     isSpectating = false
-    if localEggClone then
-        localEggClone:Destroy()
-        localEggClone = nil
-    end
-    
-    viewTargetBtn.Text = "👁️ View Target" 
-    viewTargetBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-    viewHvyBtn.Text = "👁️ View Hvy" 
-    viewHvyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    if localEggClone then localEggClone:Destroy(); localEggClone = nil end
+    viewTargetBtn.Text = "👁️ View Target"; viewTargetBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    viewHvyBtn.Text = "👁️ View Hvy"; viewHvyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
 end
 
 local function toggleSpectate(egg, activeBtn)
-    if isSpectating then
-        stopSpectating()
-        return
-    end
-    
+    if isSpectating then stopSpectating(); return end
     if not egg or not egg.Parent then return end
-    
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local char = player.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
-    isSpectating = true
-    activeBtn.Text = "🔙 Stop View"
-    activeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-    
-    egg.Archivable = true
-    localEggClone = egg:Clone()
-    egg.Archivable = false
-    
+    isSpectating = true; activeBtn.Text = "🔙 Stop View"; activeBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+    egg.Archivable = true; localEggClone = egg:Clone(); egg.Archivable = false
     if localEggClone then
         for _, v in pairs(localEggClone:GetDescendants()) do
-            if v:IsA("Script") or v:IsA("LocalScript") then
-                v:Destroy()
-            elseif v:IsA("BasePart") then
-                v.Anchored = true
-                v.CanCollide = false
-            end
+            if v:IsA("Script") or v:IsA("LocalScript") then v:Destroy()
+            elseif v:IsA("BasePart") then v.Anchored = true; v.CanCollide = false end
         end
-        
         localEggClone.Parent = workspace.CurrentCamera
         local targetPart = localEggClone:FindFirstChild("Handle") or localEggClone:FindFirstChild("EggBase") or localEggClone.PrimaryPart or localEggClone:FindFirstChildWhichIsA("BasePart")
-        
-        if targetPart then
-            local spawnCFrame = hrp.CFrame * CFrame.new(0, 0, -5)
-            localEggClone:PivotTo(spawnCFrame)
-        else
-            localEggClone:Destroy()
-            stopSpectating()
-        end
+        if targetPart then local spawnCFrame = hrp.CFrame * CFrame.new(0, 0, -5); localEggClone:PivotTo(spawnCFrame)
+        else localEggClone:Destroy(); stopSpectating() end
     end
 end
+viewTargetBtn.Activated:Connect(function() local selectedMatches, _ = scanAndInspect(); if #selectedMatches > 0 or isSpectating then toggleSpectate(selectedMatches[1], viewTargetBtn) end end)
+viewHvyBtn.Activated:Connect(function() local _, heaviestEgg = scanAndInspect(); if heaviestEgg or isSpectating then toggleSpectate(heaviestEgg, viewHvyBtn) end end)
 
-viewTargetBtn.Activated:Connect(function()
-    local selectedMatches, _ = scanAndInspect()
-    if #selectedMatches > 0 or isSpectating then toggleSpectate(selectedMatches[1], viewTargetBtn) end
-end)
-
-viewHvyBtn.Activated:Connect(function()
-    local _, heaviestEgg = scanAndInspect()
-    if heaviestEgg or isSpectating then toggleSpectate(heaviestEgg, viewHvyBtn) end
-end)
-
--- ===========================================================
--- โหมดการวาร์ป
--- ===========================================================
 modeBtn.Activated:Connect(function()
     tpMode = (tpMode % 3) + 1
-    if tpMode == 1 then
-        modeBtn.Text = "🐢 Safe TP: ON"
-        modeBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-    elseif tpMode == 2 then
-        modeBtn.Text = "⚡ Flash TP: ON"
-        modeBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-    elseif tpMode == 3 then
-        modeBtn.Text = "🕊️ Fly TP: ON"
-        modeBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-    end
+    if tpMode == 1 then modeBtn.Text = "🐢 Safe TP: ON"; modeBtn.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+    elseif tpMode == 2 then modeBtn.Text = "⚡ Flash TP: ON"; modeBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+    elseif tpMode == 3 then modeBtn.Text = "🕊️ Fly TP: ON"; modeBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) end
 end)
 
 local function countOwnedEggs(eggName)
-    local count = 0
-    local inHand = false
-    local lowerName = string.lower(eggName)
-    local char = player.Character
+    local count = 0; local inHand = false; local lowerName = string.lower(eggName); local char = player.Character
     if char then
         for _, v in pairs(char:GetChildren()) do
-            if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then
-                count = count + 1
-                inHand = true
-            end
+            if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then count = count + 1; inHand = true end
         end
     end
     local bp = player:FindFirstChild("Backpack")
     if bp then
         for _, v in pairs(bp:GetChildren()) do
-            if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then
-                count = count + 1
-            end
+            if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then count = count + 1 end
         end
     end
     return count, inHand
 end
 
 local function ensureEggInHand(eggName)
-    local char = player.Character
-    if not char then return false end
-    local lowerName = string.lower(eggName)
-
-    for _, v in pairs(char:GetChildren()) do
-        if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then
-            return true
-        end
-    end
-
-    local bp = player:FindFirstChild("Backpack")
-    local hum = char:FindFirstChildOfClass("Humanoid")
+    local char = player.Character; if not char then return false end; local lowerName = string.lower(eggName)
+    for _, v in pairs(char:GetChildren()) do if (v:IsA("Tool") or v:IsA("Model")) and string.find(string.lower(v.Name), lowerName) then return true end end
+    local bp = player:FindFirstChild("Backpack"); local hum = char:FindFirstChildOfClass("Humanoid")
     if bp and hum then
         for _, v in pairs(bp:GetChildren()) do
-            if v:IsA("Tool") and string.find(string.lower(v.Name), lowerName) then
-                pcall(function() hum:EquipTool(v) end)
-                return true
-            end
+            if v:IsA("Tool") and string.find(string.lower(v.Name), lowerName) then pcall(function() hum:EquipTool(v) end); return true end
         end
     end
     return false
 end
 
--- ฟังก์ชันถือมือเปล่า (UnequipTools)
 local function unequipAllTools()
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        pcall(function() hum:UnequipTools() end)
-    end
+    local char = player.Character; local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then pcall(function() hum:UnequipTools() end) end
 end
 
 local function grabAndReturn(egg)
     if isGrabbing then return end
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local char = player.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp or not egg or not egg.Parent then return end
-    
     local targetPart = egg:FindFirstChild("Handle") or egg:FindFirstChild("EggBase") or egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
     if not targetPart then return end
     if not homeCFrame then homeCFrame = findAutoPlotCFrame() end
     
     isGrabbing = true
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    local eggName = egg.Name
+    hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero; local eggName = egg.Name
     
-    if tpMode == 2 then -- ⚡ Flash TP
-        local originalPos = homeCFrame or hrp.CFrame
-        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
-        
+    if tpMode == 2 then
+        local originalPos = homeCFrame or hrp.CFrame; hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
         if os.clock() - lastRemoteCall > 0.1 then
             lastRemoteCall = os.clock()
             pcall(function()
@@ -1423,185 +1228,92 @@ local function grabAndReturn(egg)
             end)
         end
         task.wait(0.05)
-        
         hrp.CFrame = originalPos
-        pcall(function()
-            if tpPlotRemote then tpPlotRemote:FireServer() end
-            if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
-        end)
-
-    elseif tpMode == 3 then -- 🕊️ Fly TP (ล็อกตัวบินกลับบ้าน กันกระเด้ง 100%)
-        local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame
-        local beforeCount, _ = countOwnedEggs(eggName)
-        
-        -- ขั้นตอนที่ 1: วาร์ปไปยืนข้างๆ ไข่
+        pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
+    elseif tpMode == 3 then
+        local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame; local beforeCount, _ = countOwnedEggs(eggName)
         local standPos = targetPart.Position + Vector3.new(2.0, 1.5, 0)
         hrp.CFrame = CFrame.lookAt(standPos, Vector3.new(targetPart.Position.X, standPos.Y, targetPart.Position.Z))
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
         
-        -- ขั้นตอนที่ 2: รอจนกว่าไข่จะเข้ามือชัวร์
         local startTime = os.clock()
         while (os.clock() - startTime < 6.0) do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp = player.Character.HumanoidRootPart
-            
             if targetPart and targetPart.Parent then
                 standPos = targetPart.Position + Vector3.new(2.0, 1.5, 0)
                 hrp.CFrame = CFrame.lookAt(standPos, Vector3.new(targetPart.Position.X, standPos.Y, targetPart.Position.Z))
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
+                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
             end
-            
             pcall(function()
                 if eggPickupRemote then eggPickupRemote:FireServer(egg) end
                 local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then
-                    prompt.HoldDuration = 0
-                    if fireproximityprompt then fireproximityprompt(prompt) end
-                end
+                if prompt then prompt.HoldDuration = 0; if fireproximityprompt then fireproximityprompt(prompt) end end
             end)
-            
             local nowCount, inHand = countOwnedEggs(eggName)
             local eggGoneFromWild = (not egg or not egg.Parent or not isWildEgg(egg))
-            
             if nowCount > beforeCount or (eggGoneFromWild and (inHand or ensureEggInHand(eggName))) then
                 ensureEggInHand(eggName)
                 local confirmStart = os.clock()
                 while os.clock() - confirmStart < 0.35 do
                     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        player.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-                        player.Character.HumanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+                        player.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero; player.Character.HumanoidRootPart.AssemblyAngularVelocity = Vector3.zero
                     end
-                    ensureEggInHand(eggName)
-                    task.wait(0.05)
+                    ensureEggInHand(eggName); task.wait(0.05)
                 end
                 local finalCount, finalInHand = countOwnedEggs(eggName)
-                if finalInHand or finalCount > beforeCount or (not egg or not egg.Parent or not isWildEgg(egg)) then
-                    break
-                end
+                if finalInHand or finalCount > beforeCount or (not egg or not egg.Parent or not isWildEgg(egg)) then break end
             end
-            
-            if eggGoneFromWild and (os.clock() - startTime > 1.2) then
-                break
-            end
-            
+            if eggGoneFromWild and (os.clock() - startTime > 1.2) then break end
             task.wait(0.08)
         end
         
-        -- ขั้นตอนที่ 3: ล็อกฟิสิกส์ตัวละคร + Noclip เพื่อบินกลับบ้านโดยไม่กระเด้ง
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.PlatformStand = true
-        end
+        if hum then hum.PlatformStand = true end
 
-        local noclipConn
-        noclipConn = runService.Stepped:Connect(function()
+        local noclipConn = runService.Stepped:Connect(function()
             if player.Character then
-                for _, part in pairs(player.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
+                for _, part in pairs(player.Character:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
                 local root = player.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.AssemblyLinearVelocity = Vector3.zero
-                    root.AssemblyAngularVelocity = Vector3.zero
-                end
+                if root then root.AssemblyLinearVelocity = Vector3.zero; root.AssemblyAngularVelocity = Vector3.zero end
             end
         end)
         
         local flyHeightOffset = Vector3.new(0, 12, 0)
         local destPos = targetHomeCF.Position + flyHeightOffset
-        local flyStart = os.clock()
-        local lastStep = os.clock()
-        
+        local flyStart = os.clock(); local lastStep = os.clock()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            hrp = player.Character.HumanoidRootPart
-            hrp.CFrame = CFrame.new(hrp.Position + flyHeightOffset)
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp = player.Character.HumanoidRootPart; hrp.CFrame = CFrame.new(hrp.Position + flyHeightOffset)
+            hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
         end
-        
         while (os.clock() - flyStart < 25) do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp = player.Character.HumanoidRootPart
-            
-            local now = os.clock()
-            local dt = math.clamp(now - lastStep, 0.005, 0.1)
-            lastStep = now
-            
-            local currentPos = hrp.Position
-            local diff = destPos - currentPos
-            local dist = diff.Magnitude
-            
-            if dist <= 2.5 then
-                break
-            end
-            
-            -- ชะลอความเร็วเมื่อเข้าใกล้ระยะบ้านเพื่อไม่ให้พุ่งเลยจุดจอด
+            local now = os.clock(); local dt = math.clamp(now - lastStep, 0.005, 0.1); lastStep = now
+            local currentPos = hrp.Position; local diff = destPos - currentPos; local dist = diff.Magnitude
+            if dist <= 2.5 then break end
             local currentSpeed = flySpeed
-            if dist < 35 then
-                currentSpeed = math.clamp(flySpeed * (dist / 35), 40, flySpeed)
-            end
-            
-            local stepDist = math.min(dist, currentSpeed * dt)
-            local nextPos = currentPos + (diff.Unit * stepDist)
-            
-            hrp.CFrame = CFrame.new(nextPos) * targetHomeCF.Rotation
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            
+            if dist < 35 then currentSpeed = math.clamp(flySpeed * (dist / 35), 40, flySpeed) end
+            local stepDist = math.min(dist, currentSpeed * dt); local nextPos = currentPos + (diff.Unit * stepDist)
+            hrp.CFrame = CFrame.new(nextPos) * targetHomeCF.Rotation; hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
             runService.Heartbeat:Wait()
         end
-        
-        -- ขั้นตอนที่ 4: ล็อกตัวละคร (Anchored) ตอนแตะพื้นบ้านกันกระเด้ง 100%
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            hrp = player.Character.HumanoidRootPart
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            hrp.CFrame = targetHomeCF
-            hrp.Anchored = true
+            hrp = player.Character.HumanoidRootPart; hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = targetHomeCF; hrp.Anchored = true
         end
-        
         if noclipConn then noclipConn:Disconnect() end
-        if player.Character then
-            for _, part in pairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    part.CanCollide = true
-                end
-            end
-        end
-        
+        if player.Character then for _, part in pairs(player.Character:GetDescendants()) do if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then part.CanCollide = true end end end
         task.wait(0.12)
-        
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            hrp = player.Character.HumanoidRootPart
-            hrp.Anchored = false
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            hrp.CFrame = targetHomeCF
+            hrp = player.Character.HumanoidRootPart; hrp.Anchored = false; hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero; hrp.CFrame = targetHomeCF
         end
-        
         hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.PlatformStand = false
-            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-        
+        if hum then hum.PlatformStand = false; hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
         task.wait(0.1)
-        -- วางไข่ลงฐาน
-        pcall(function()
-            if tpPlotRemote then tpPlotRemote:FireServer() end
-            if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
-        end)
-
-    else -- 🐢 Safe TP
-        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
-        task.wait(0.2)
-        
+        pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
+    else
+        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0); task.wait(0.2)
         if os.clock() - lastRemoteCall > 0.25 then
             lastRemoteCall = os.clock()
             pcall(function()
@@ -1611,72 +1323,118 @@ local function grabAndReturn(egg)
             end)
         end
         task.wait(0.25)
-        
         if homeCFrame then hrp.CFrame = homeCFrame end
-        pcall(function()
-            if tpPlotRemote then tpPlotRemote:FireServer() end
-            if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
-        end)
+        pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
     end
-    
-    -- พอเก็บและส่งไข่เสร็จ ให้ถือมือเปล่าตามระบบเก่า
     task.wait(0.1)
     unequipAllTools()
-    
     isGrabbing = false
 end
 
--- Button Activations
-tpBtn.Activated:Connect(function()
-    local selectedMatches, _ = scanAndInspect()
-    if #selectedMatches > 0 then grabAndReturn(selectedMatches[1]) end
-end)
-
-tpHvyBtn.Activated:Connect(function()
-    local _, heaviestEgg = scanAndInspect()
-    if heaviestEgg then grabAndReturn(heaviestEgg) end
-end)
-
+tpBtn.Activated:Connect(function() local selectedMatches, _ = scanAndInspect(); if #selectedMatches > 0 then grabAndReturn(selectedMatches[1]) end end)
+tpHvyBtn.Activated:Connect(function() local _, heaviestEgg = scanAndInspect(); if heaviestEgg then grabAndReturn(heaviestEgg) end end)
 homeBtn.Activated:Connect(function()
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        homeCFrame = hrp.CFrame
-        homeBtn.Text = "✅ Saved!"
-        task.delay(1.5, function() homeBtn.Text = "🏠 Set Base" end)
-    end
+    if hrp then homeCFrame = hrp.CFrame; homeBtn.Text = "✅ Saved!"; task.delay(1.5, function() homeBtn.Text = "🏠 Set Base" end) end
 end)
-
 farmBtn.Activated:Connect(function()
     if #selectedEggs == 0 then return end
     isFarming = not isFarming
-    if isFarming then
-        homeCFrame = findAutoPlotCFrame()
-        farmBtn.Text = "⏹ STOP FARM"
-        farmBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-    else
-        farmBtn.Text = "⚡ AUTO FARM"
-        farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-    end
+    if isFarming then homeCFrame = findAutoPlotCFrame(); farmBtn.Text = "⏹ STOP FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+    else farmBtn.Text = "⚡ AUTO FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) end
 end)
-
 minBtn.Activated:Connect(function()
     isMinimized = not isMinimized
     tweenService:Create(mainFrame, TweenInfo.new(0.2), {Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, isMinimized and 36 or 330)}):Play()
     minBtn.Text = isMinimized and "+" or "—"
 end)
-
 closeBtn.Activated:Connect(function()
-    isFarming = false
-    if isSpectating then stopSpectating() end
-    clearESP()
-    sg:Destroy()
+    isFarming = false; if isSpectating then stopSpectating() end; clearESP(); sg:Destroy()
 end)
 
--- Real-Time Loops
+-- 🔔 Logic ควบคุมระบบแจ้งเตือน ------------------------------------
+local notificationEnabled = false
+local isNotifying = false
+local notifiedEggs = {}
+
+-- กำลังใช้งานระบบอยู่หรือไม่ (Auto Farm / View ส่องไข่ / TP เก็บไข่)
+local function isNotificationSuppressed()
+    return isFarming or isSpectating or isGrabbing
+end
+
+local function stopAlertNow()
+    if isNotifying then
+        alertSound:Stop()
+        popupFrame.Visible = false
+        isNotifying = false
+    end
+end
+
+-- ตัดเสียงทันทีเมื่อเริ่มใช้ระบบ (Auto Farm / View ส่องไข่ / TP เก็บไข่)
+runService.Heartbeat:Connect(function()
+    if isNotifying and isNotificationSuppressed() then stopAlertNow() end
+end)
+
+notifyBtn.Activated:Connect(function()
+    notificationEnabled = not notificationEnabled
+    if notificationEnabled then
+        notifyBtn.Text = "🔔 แจ้งเตือน: เปิด"
+        notifyBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+        notifiedEggs = {} -- ล้างข้อมูลประวัติเมื่อกดเปิดใหม่
+    else
+        notifyBtn.Text = "🔔 แจ้งเตือน: ปิด"
+        notifyBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        stopAlertNow()
+    end
+end)
+
+popupBtn.Activated:Connect(function()
+    stopAlertNow()
+end)
+
+-- สแกนเฉพาะ Volcanic / Cherub / Solaris Egg ที่เกิดตามธรรมชาติในแมพ
+local function findWhitelistedWildEggs()
+    local found = {}
+    for _, item in pairs(workspace:GetDescendants()) do
+        if (item:IsA("Model") or item:IsA("Tool")) and isWildEgg(item) then
+            local lowerName = string.lower(item.Name)
+            for alertName in pairs(ALERT_EGG_WHITELIST) do
+                if string.find(lowerName, string.lower(alertName)) then
+                    table.insert(found, { Egg = item, Name = alertName })
+                    break
+                end
+            end
+        end
+    end
+    return found
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        if isNotificationSuppressed() then
+            stopAlertNow()
+        elseif notificationEnabled and not isNotifying then
+            for _, found in ipairs(findWhitelistedWildEggs()) do
+                if not notifiedEggs[found.Egg] then
+                    notifiedEggs[found.Egg] = true
+                    isNotifying = true
+                    popupMsg.Text = "🎉 พบไข่แจ้งเตือน!\n[" .. found.Name .. "]"
+                    popupFrame.Visible = true
+                    alertSound:Play()
+                    break
+                end
+            end
+        end
+        -- Clean up history for eggs that are gone / no longer wild
+        for egg, _ in pairs(notifiedEggs) do
+            if not egg or not egg.Parent or not isWildEgg(egg) then notifiedEggs[egg] = nil end
+        end
+    end
+end)
+-- -------------------------------------------------------------
+
 runService.RenderStepped:Connect(function()
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myChar = player.Character; local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if myHRP and #activeBillboards > 0 then
         for _, item in pairs(activeBillboards) do
             if item.Part and item.Part.Parent and item.Label and item.Label.Parent then
@@ -1702,44 +1460,23 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    while task.wait(1.5) do
-        if not isFarming then updateInspectorESP() end
-    end
+    while task.wait(1.5) do if not isFarming then updateInspectorESP() end end
 end)
 
-local lastQueueIndex = nil
-local hasUnequippedOnEmpty = false 
-
+local lastQueueIndex = nil; local hasUnequippedOnEmpty = false 
 task.spawn(function()
     while task.wait(0.4) do
         if isFarming and #selectedEggs > 0 then
             local targetToFarm, currentQueueIndex = scanForFarmQueue()
             if targetToFarm then
-                
                 hasUnequippedOnEmpty = false 
-                
                 if lastQueueIndex and currentQueueIndex > lastQueueIndex then
-                    task.wait(1) 
-                    unequipAllTools()
-                    task.wait(2) 
-                    lastQueueIndex = currentQueueIndex
-                else
-                    grabAndReturn(targetToFarm)
-                    lastQueueIndex = currentQueueIndex
-                    task.wait(tpMode == 2 and 0.2 or 0.4)
-                end
-                
+                    task.wait(1); unequipAllTools(); task.wait(2); lastQueueIndex = currentQueueIndex
+                else grabAndReturn(targetToFarm); lastQueueIndex = currentQueueIndex; task.wait(tpMode == 2 and 0.2 or 0.4) end
             else
                 lastQueueIndex = nil
-                
-                if not hasUnequippedOnEmpty then
-                    unequipAllTools()
-                    hasUnequippedOnEmpty = true 
-                end
+                if not hasUnequippedOnEmpty then unequipAllTools(); hasUnequippedOnEmpty = true end
             end
-        else
-            lastQueueIndex = nil
-            hasUnequippedOnEmpty = false
-        end
+        else lastQueueIndex = nil; hasUnequippedOnEmpty = false end
     end
 end)
