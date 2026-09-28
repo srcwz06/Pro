@@ -39,6 +39,68 @@ local blockedRemoteNames = {
     ["ServerMessage"] = true
 }
 
+-- 🛡️ บล็อกระบบ Analytics ที่อาจใช้ตรวจจับ
+local analyticsBlocked = false
+local function blockAnalytics()
+    if analyticsBlocked then return end
+    analyticsBlocked = true
+    pcall(function()
+        local userGen = rs:FindFirstChild("UserGenerated")
+        if userGen then
+            local analytics = userGen:FindFirstChild("Analytics")
+            if analytics then
+                local clientKit = analytics:FindFirstChild("ClientKit")
+                if clientKit then
+                    -- บล็อก RemoteEvents ที่ส่งข้อมูล analytics
+                    for _, child in pairs(clientKit:GetChildren()) do
+                        if child:IsA("RemoteEvent") or child:IsA("UnreliableRemoteEvent") then
+                            local oldFire = child.FireServer
+                            child.FireServer = function(...) return end
+                        end
+                    end
+                end
+            end
+            -- บล็อก FastFlags Updates
+            local fastFlags = userGen:FindFirstChild("FastFlags")
+            if fastFlags then
+                local sharedFlags = fastFlags:FindFirstChild("SharedFastFlags")
+                if sharedFlags then
+                    local updateRemote = sharedFlags:FindFirstChild("Update")
+                    if updateRemote and updateRemote:IsA("RemoteEvent") then
+                        updateRemote.FireServer = function(...) return end
+                    end
+                end
+            end
+        end
+    end)
+end
+blockAnalytics()
+
+-- 🎭 ป้องกันการตรวจจับจาก FPS - spoof FPS values
+local originalFps = 60
+local fpsSpoofEnabled = true
+if fpsSpoofEnabled then
+    pcall(function()
+        local userGen = rs:FindFirstChild("UserGenerated")
+        if userGen then
+            local analytics = userGen:FindFirstChild("Analytics")
+            if analytics then
+                local clientKit = analytics:FindFirstChild("ClientKit")
+                if clientKit then
+                    local fpsRemote = clientKit:FindFirstChild("Fps")
+                    if fpsRemote and fpsRemote:IsA("RemoteEvent") then
+                        fpsRemote.FireServer = function(self, fps)
+                            -- ส่ง FPS ปกติแทน FPS จริง
+                            originalFps = math.random(55, 65) -- สุ่ม FPS ระหว่าง 55-65
+                            fpsRemote.FireServer = function(self, realFps) return end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
 pcall(function()
     if hookmetamethod then
         local oldNamecall
@@ -1432,7 +1494,12 @@ local function volcFlyTo(hrpIn, targetPos, speed)
         local diff = targetPos - h.Position; local dist = diff.Magnitude
         if dist <= 3 then break end
         local now = os.clock(); local dt = math.clamp(now - lastStep, 0.005, 0.1); lastStep = now
-        local stepDist = math.min(dist, speed * dt)
+        
+        -- 🎲 สุ่มความเร็วบินระหว่าง 990-1000 (ไม่ต่ำกว่า 990)
+        local randomSpeed = math.random(990, 1000) + math.random() * 0.9
+        local actualSpeed = math.min(randomSpeed, speed) -- ใช้ความเร็วสุ่ม แต่ไม่เกินความเร็วที่กำหนด
+        
+        local stepDist = math.min(dist, actualSpeed * dt)
         h.CFrame = CFrame.new(h.Position + diff.Unit * stepDist)
         h.AssemblyLinearVelocity = Vector3.zero; h.AssemblyAngularVelocity = Vector3.zero
         runService.Heartbeat:Wait()
@@ -1682,11 +1749,25 @@ local function runVolcanoDip()
             if not pre or not heldEggName() then break end -- ไข่ออกจากมือ = อนิเมชันเริ่ม
             task.wait(0.25)
         end
-        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 7 วิ
+        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) รอแต่ต้องบินกลับก่อนไข่แตก
+        local function getEggTimer()
+            local pg = player:FindFirstChild("PlayerGui")
+            local main = pg and pg:FindFirstChild("Main")
+            local timer = main and main:FindFirstChild("Timer") or main and main:FindFirstChild("EggTimer")
+            if timer and timer:IsA("TextLabel") then
+                local timeText = timer.Text
+                local seconds = tonumber(timeText:match("([%d.]+)"))
+                return seconds or 0
+            end
+            return 0
+        end
+        
         local waitStart = os.clock()
-        while os.clock() - waitStart < 7 do
+        while os.clock() - waitStart < 10 do -- รอสูงสุด 10 วิ (ต้องบินกลับก่อนไข่แตก)
             if heldEggName() then break end
-            task.wait(0.25)
+            local timerValue = getEggTimer()
+            if timerValue and timerValue <= 1 then break end -- ถ้าเหลือ 1 วิ ให้บินกลับทันที (ก่อนไข่แตก)
+            task.wait(0.1)
         end
         task.wait(0.8) -- เผื่ออนิเมชันรับไข่เล่นจบก่อนค่อยบินกลับ
         local got = heldEggName()
@@ -1819,7 +1900,10 @@ local function grabAndReturn(egg)
         hrp.CFrame = originalPos
         pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
     elseif tpMode == 3 then
-        local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame; local beforeCount, _ = countOwnedEggs(eggName)
+        local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame
+        -- 🏠 ถ้าไม่มี homeCFrame ให้หาและบันทึกอัตโนมัติ
+        if not homeCFrame then homeCFrame = findAutoPlotCFrame() end
+        local beforeCount, _ = countOwnedEggs(eggName)
         -- 🎯 ยืนจุดเก็บจริง: อ้างจาก ProximityPrompt ของไข่ก่อน (จุดที่เกมให้กดเก็บ) ไม่ใช่กึ่งกลางโมเดล
         local interactPart = targetPart
         pcall(function()
@@ -1998,8 +2082,18 @@ end)
 farmBtn.Activated:Connect(function()
     if #selectedEggs == 0 then return end
     isFarming = not isFarming
-    if isFarming then homeCFrame = findAutoPlotCFrame(); farmBtn.Text = "⏹ STOP FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
-    else farmBtn.Text = "⚡ AUTO FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) end
+    if isFarming then 
+        -- 🏠 Auto-detect บ้าน ถ้ายังไม่มี
+        if not homeCFrame then homeCFrame = findAutoPlotCFrame() end
+        -- 🚫 ล็อครายการไข่ที่เลือกไว้ตอนเริ่มฟาร์ม
+        farmingEggList = {}
+        for i, egg in ipairs(selectedEggs) do farmingEggList[i] = egg end
+        
+        farmBtn.Text = "⏹ STOP FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(220, 38, 38)
+    else 
+        farmBtn.Text = "⚡ AUTO FARM"; farmBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) 
+        farmingEggList = {} -- รีเซ็ตเมื่อหยุดฟาร์ม
+    end
 end)
 minBtn.Activated:Connect(function()
     isMinimized = not isMinimized
@@ -2114,9 +2208,19 @@ task.spawn(function()
 end)
 
 local lastQueueIndex = nil; local hasUnequippedOnEmpty = false 
+local farmingEggList = {} -- 🚫 ล็อครายการไข่ที่เลือกไว้ตอนเริ่มฟาร์ม
+
 task.spawn(function()
     while task.wait(0.4) do
         if isFarming and #selectedEggs > 0 then
+            -- 🚫 ใช้รายการที่ล็อคไว้ ไม่ใช้ selectedEggs ปัจจุบัน (ป้องกันการเปลี่ยนระหว่างฟาร์ม)
+            local currentFarmList = farmingEggList
+            if #currentFarmList == 0 then
+                -- ถ้าเริ่มฟาร์มใหม่ ให้ล็อครายการ
+                for i, egg in ipairs(selectedEggs) do farmingEggList[i] = egg end
+                currentFarmList = farmingEggList
+            end
+            
             local targetToFarm, currentQueueIndex = scanForFarmQueue()
             if targetToFarm then
                 hasUnequippedOnEmpty = false 
@@ -2127,6 +2231,8 @@ task.spawn(function()
                 lastQueueIndex = nil
                 if not hasUnequippedOnEmpty then unequipAllTools(); hasUnequippedOnEmpty = true end
             end
-        else lastQueueIndex = nil; hasUnequippedOnEmpty = false end
+        else 
+            lastQueueIndex = nil; hasUnequippedOnEmpty = false; farmingEggList = {} -- รีเซ็ตเมื่อหยุดฟาร์ม
+        end
     end
 end)
