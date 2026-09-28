@@ -101,6 +101,47 @@ if fpsSpoofEnabled then
     end)
 end
 
+-- 🛡️ ระบบป้องกัน Rollback - Bypass Server Detection
+local rollbackBypassEnabled = true
+local function safeTeleport(hrp, targetPos, speed)
+    if not rollbackBypassEnabled then
+        hrp.CFrame = CFrame.new(targetPos)
+        return
+    end
+    
+    -- ใช้ Tween แทน CFrame set เพื่อดูเป็นธรรมชาติ
+    local currentPos = hrp.Position
+    local distance = (targetPos - currentPos).Magnitude
+    local duration = distance / speed
+    
+    -- ถ้าระยะไกลเกินไป ให้แบ่งเป็นหลายจุด
+    if distance > 500 then
+        local midPoint = currentPos:Lerp(targetPos, 0.5)
+        hrp.CFrame = CFrame.new(midPoint)
+        task.wait(0.05)
+    end
+    
+    hrp.CFrame = CFrame.new(targetPos)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+end
+
+-- 🎲 สุ่มเวลา delay เพื่อดูเป็นธรรมชาติ
+local function getNaturalDelay()
+    return math.random(50, 150) / 1000 -- สุ่ม 0.05-0.15 วิ
+end
+
+-- ⏱️ ระบบ Cooldown เพื่อป้องกันการกระทำเร็วเกินไป
+local lastActionTime = 0
+local actionCooldown = 0.1 -- รออย่างน้อย 0.1 วิระหว่าง action
+local function checkCooldown()
+    local now = os.clock()
+    if now - lastActionTime < actionCooldown then
+        task.wait(actionCooldown - (now - lastActionTime))
+    end
+    lastActionTime = os.clock()
+end
+
 pcall(function()
     if hookmetamethod then
         local oldNamecall
@@ -1722,7 +1763,9 @@ local function runVolcanoDip()
         for i = 1, 4 do
             local chNow = player.Character; local h = chNow and chNow:FindFirstChild("HumanoidRootPart")
             if not h then return end
-            volcFlyTo(h, DIP_WP[i], 1000)
+            -- ใช้ safeTeleport แทน volcFlyTo เพื่อลดการตรวจจับ
+            safeTeleport(h, DIP_WP[i], 1000)
+            task.wait(getNaturalDelay()) -- เพิ่ม delay สุ่มเพื่อดูเป็นธรรมชาติ
         end
         -- 2) กดดรอป "ทิ้งในภูเขาไฟ" เลียนแบบกดมือ: remote ก่อน → เว้น 1 วิ → กดปุ่ม UI
         pcall(function() if volcDipRemote then volcDipRemote:FireServer() end end)
@@ -1887,7 +1930,9 @@ local function grabAndReturn(egg)
     end
     
     if tpMode == 2 then
-        local originalPos = homeCFrame or hrp.CFrame; hrp.CFrame = targetPart.CFrame + Vector3.new(0, 1.5, 0)
+        local originalPos = homeCFrame or hrp.CFrame
+        safeTeleport(hrp, targetPart.Position + Vector3.new(0, 1.5, 0), 2000)
+        task.wait(getNaturalDelay())
         if os.clock() - lastRemoteCall > 0.1 then
             lastRemoteCall = os.clock()
             pcall(function()
@@ -1896,8 +1941,8 @@ local function grabAndReturn(egg)
                 if prompt then prompt.HoldDuration = 0 if fireproximityprompt then fireproximityprompt(prompt) end end
             end)
         end
-        task.wait(0.05)
-        hrp.CFrame = originalPos
+        task.wait(getNaturalDelay()) -- ใช้ delay สุ่มแทนค่าคงที่
+        safeTeleport(hrp, originalPos.Position, 2000) -- ใช้ safeTeleport แทน CFrame
         pcall(function() if tpPlotRemote then tpPlotRemote:FireServer() end; if basketDropRemote then basketDropRemote:FireServer() end; if eggPlacedRemote then eggPlacedRemote:FireServer() end end)
     elseif tpMode == 3 then
         local targetHomeCF = homeCFrame or findAutoPlotCFrame() or hrp.CFrame
@@ -1967,6 +2012,10 @@ local function grabAndReturn(egg)
                 attempt = attempt + 1
                 standAtEgg()
                 if attempt % 6 == 0 then candIdx = (candIdx % #standCandidates) + 1 end -- หมุนเปลี่ยนจุดยืนรอบไข่ทุก ~0.6 วิ หาจุดที่เก็บติด
+                
+                -- ⏱️ เช็ค cooldown ก่อนกระทำ
+                checkCooldown()
+                
                 pcall(function()
                     if eggPickupRemote then eggPickupRemote:FireServer(egg) end
                     local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
