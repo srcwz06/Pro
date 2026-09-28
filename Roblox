@@ -1600,6 +1600,45 @@ local DIP_WP = {
     Vector3.new(-5115.66, 41466.20, -3441.70), -- 4 จุดดรอป (ยืนกด "ทิ้งในภูเขาไฟ")
 }
 
+-- 🏠 โหลดพิกัดพื้นที่หวงห้ามจากไฟล์ apex_pins.txt (จุดที่ไม่ควรผ่านบ้าน)
+local FORBIDDEN_ZONES = {}
+local function loadForbiddenZones()
+    local ok, content = pcall(function()
+        if isfile and isfile("workspace/apex_pins.txt") then
+            return readfile("workspace/apex_pins.txt")
+        end
+        return nil
+    end)
+    if ok and content then
+        for line in content:gmatch("[^\r\n]+") do
+            local x, y, z = line:match("pos=%(([%d.-]+), ([%d.-]+), ([%d.-]+)%)")
+            if x and y and z then
+                table.insert(FORBIDDEN_ZONES, Vector3.new(tonumber(x), tonumber(y), tonumber(z)))
+            end
+        end
+    end
+end
+loadForbiddenZones()
+
+-- ตรวจสอบว่าเส้นทางจะผ่านพื้นที่หวงห้ามหรือไม่
+local function willPassThroughForbidden(startPos, endPos)
+    if #FORBIDDEN_ZONES == 0 then return false end
+    local direction = (endPos - startPos).Unit
+    local distance = (endPos - startPos).Magnitude
+    local zoneRadius = 30 -- รัศมีพื้นที่หวงห้าม
+    for _, zone in ipairs(FORBIDDEN_ZONES) do
+        local toZone = zone - startPos
+        local projection = toZone:Dot(direction)
+        if projection > 0 and projection < distance then
+            local closestPoint = startPos + direction * projection
+            if (closestPoint - zone).Magnitude < zoneRadius then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- 🌋 ลำดับดรอปที่จุดดรอปจริง (เรียกจาก grabAndReturn เมื่อเปิดสวิตช์): บิน 1→4 → กด "ทิ้งในภูเขาไฟ" → รอไข่หมุน → ไข่เด้งกลับเข้าตัว
 local function runVolcanoDip()
     if dipRunning then return end
@@ -1643,9 +1682,9 @@ local function runVolcanoDip()
             if not pre or not heldEggName() then break end -- ไข่ออกจากมือ = อนิเมชันเริ่ม
             task.wait(0.25)
         end
-        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 14 วิ
+        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 7 วิ
         local waitStart = os.clock()
-        while os.clock() - waitStart < 14 do
+        while os.clock() - waitStart < 7 do
             if heldEggName() then break end
             task.wait(0.25)
         end
@@ -1805,6 +1844,26 @@ local function grabAndReturn(egg)
             Vector3.new(0, math.min(eggRadius + 3.0, 10.0), 0),
         }
         local candIdx = 1
+        
+        -- 🏠 ตรวจสอบว่าเส้นทางไปไข่จะผ่านพื้นที่หวงห้ามหรือไม่ (เฉพาะตอนเปิดดรอปลาวา)
+        local flyWaypoint = eggPos
+        if dipEnabled then
+            local homePos = targetHomeCF.Position
+            local eggPos = targetPart.Position
+            if willPassThroughForbidden(homePos, eggPos) then
+                -- หลบไปข้างหนึ่งด้วยรัศมี 50 studs
+                local dirToEgg = (eggPos - homePos).Unit
+                local sideOffset = Vector3.new(-dirToEgg.Z, 0, dirToEgg.X).Unit * 50
+                flyWaypoint = eggPos + sideOffset + Vector3.new(0, 20, 0)
+            end
+        end
+        
+        -- บินไป waypoint ก่อน (ถ้ามีการหลบพื้นที่หวงห้ามและเปิดดรอปลาวา)
+        if flyWaypoint ~= eggPos and dipEnabled then
+            volcFlyTo(hrp, flyWaypoint, 1000) -- บินเร็วเหมือนปกติ
+            task.wait(0.05)
+        end
+        
         local attempt = 0
         local function standAtEgg()
             local base = (interactPart and interactPart.Parent) and interactPart.Position or targetPart.Position
@@ -1878,6 +1937,8 @@ local function grabAndReturn(egg)
         
         local flyHeightOffset = Vector3.new(0, 12, 0)
         local destPos = targetHomeCF.Position + flyHeightOffset
+        
+        -- ขากลับ: บินตรงไปบ้านเสมอ (ไม่หลบพื้นที่หวงห้าม)
         local flyStart = os.clock(); local lastStep = os.clock()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             hrp = player.Character.HumanoidRootPart; hrp.CFrame = CFrame.new(hrp.Position + flyHeightOffset)
