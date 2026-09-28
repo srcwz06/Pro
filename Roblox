@@ -645,10 +645,24 @@ local function createActionBtn(text, color, parent, xPos, widthStr)
     return btn
 end
 
-local viewTargetBtn, viewHvyBtn
+-- 🌋 โหมดดรอปลาวา (DROP IN VOLCANO): สวิตช์เปิด/ปิด — เปิดไว้แล้ว TP ไข่ปกติ จะเปลี่ยนทางไปยอดปล่อง
+local dipEnabled = false -- สวิตช์หลัก (สลับด้วยปุ่ม)
+local dipRunning = false -- กันรันซ้อนระหว่างรอบดรอป
+
+local viewTargetBtn, dipMainBtn
 local row0 = createBtnRow()
 viewTargetBtn = createActionBtn("👁️ View Target", Color3.fromRGB(139, 92, 246), row0, 0, 0.48)
-viewHvyBtn = createActionBtn("👁️ View Hvy", Color3.fromRGB(139, 92, 246), row0, 0.52, 0.48)
+dipMainBtn = createActionBtn("🌋 ดรอปลาวา: ปิด", Color3.fromRGB(107, 114, 128), row0, 0.52, 0.48)
+dipMainBtn.Activated:Connect(function()
+    dipEnabled = not dipEnabled
+    if dipEnabled then
+        dipMainBtn.Text = "🌋 ดรอปลาวา: เปิด"
+        dipMainBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+    else
+        dipMainBtn.Text = "🌋 ดรอปลาวา: ปิด"
+        dipMainBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
+    end
+end)
 
 local row1 = createBtnRow()
 local tpBtn = createActionBtn("🚀 TP Target", Color3.fromRGB(59, 130, 246), row1, 0, 0.48)
@@ -1067,7 +1081,7 @@ end
 local function isWildEgg(item)
     local curr = item.Parent
     while curr and curr ~= workspace do
-        -- ข้ามไข่จำลองจากปุ่ม 👁️ View Target / 👁️ View Hvy (parent ไว้ที่ CurrentCamera)
+        -- ข้ามไข่จำลองจากปุ่ม 👁️ View Target (parent ไว้ที่ CurrentCamera)
         if curr:IsA("Camera") then return false end
         local n = string.lower(curr.Name)
         if n:find("plot") or n:find("nest") or n:find("base") or curr:FindFirstChild("Humanoid") then return false end
@@ -1345,7 +1359,6 @@ local function stopSpectating()
     isSpectating = false
     if localEggClone then localEggClone:Destroy(); localEggClone = nil end
     viewTargetBtn.Text = "👁️ View Target"; viewTargetBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
-    viewHvyBtn.Text = "👁️ View Hvy"; viewHvyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
 end
 
 local function toggleSpectate(egg, activeBtn)
@@ -1367,7 +1380,6 @@ local function toggleSpectate(egg, activeBtn)
     end
 end
 viewTargetBtn.Activated:Connect(function() local selectedMatches, _ = scanAndInspect(); if #selectedMatches > 0 or isSpectating then toggleSpectate(selectedMatches[1], viewTargetBtn) end end)
-viewHvyBtn.Activated:Connect(function() local _, heaviestEgg = scanAndInspect(); if heaviestEgg or isSpectating then toggleSpectate(heaviestEgg, viewHvyBtn) end end)
 
 modeBtn.Activated:Connect(function()
     tpMode = (tpMode % 3) + 1
@@ -1587,30 +1599,6 @@ local DIP_WP = {
     Vector3.new(-5078.04, 41580.33, -3447.32), -- 3 ลงมาชานปล่อง
     Vector3.new(-5115.66, 41466.20, -3441.70), -- 4 จุดดรอป (ยืนกด "ทิ้งในภูเขาไฟ")
 }
-local dipEnabled = false -- สวิตช์หลัก (สลับด้วยปุ่ม)
-local dipRunning = false -- กันรันซ้อนระหว่างรอบดรอป
-local dipBtn = Instance.new("TextButton")
-dipBtn.Size = UDim2.new(1, -16, 0, 40)
-dipBtn.Position = UDim2.new(0, 8, 0, 204)
-dipBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
-dipBtn.BackgroundTransparency = 0.3
-dipBtn.Text = "🌋 ดรอปลาวา: ปิด"
-dipBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-dipBtn.Font = Enum.Font.GothamBold
-dipBtn.TextSize = 9
-dipBtn.AutoButtonColor = true
-dipBtn.Parent = wRight
-Instance.new("UICorner", dipBtn).CornerRadius = UDim.new(0, 6)
-dipBtn.Activated:Connect(function()
-    dipEnabled = not dipEnabled
-    if dipEnabled then
-        dipBtn.Text = "🌋 ดรอปลาวา: เปิด (TP = ไปดรอป)"
-        dipBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-    else
-        dipBtn.Text = "🌋 ดรอปลาวา: ปิด"
-        dipBtn.BackgroundColor3 = Color3.fromRGB(107, 114, 128)
-    end
-end)
 
 -- 🌋 ลำดับดรอปที่จุดดรอปจริง (เรียกจาก grabAndReturn เมื่อเปิดสวิตช์): บิน 1→4 → กด "ทิ้งในภูเขาไฟ" → รอไข่หมุน → ไข่เด้งกลับเข้าตัว
 local function runVolcanoDip()
@@ -1655,9 +1643,9 @@ local function runVolcanoDip()
             if not pre or not heldEggName() then break end -- ไข่ออกจากมือ = อนิเมชันเริ่ม
             task.wait(0.25)
         end
-        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 45 วิ
+        -- 4) รอไข่เด้งกลับเข้าตัว (รูป 3 — สัญญาณจบ เกมสุ่มบัฟแล้วคืนไข่ให้เอง) นานสุด 14 วิ
         local waitStart = os.clock()
-        while os.clock() - waitStart < 45 do
+        while os.clock() - waitStart < 14 do
             if heldEggName() then break end
             task.wait(0.25)
         end
