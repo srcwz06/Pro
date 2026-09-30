@@ -298,7 +298,7 @@ local bar = mk("Frame", {
 }, win)
 mk("TextLabel", {
     Size = UDim2.new(1, -80, 1, 0), Position = UDim2.new(0, 11, 0, 0),
-    BackgroundTransparency = 1, Text = "🥚 EGG LITE · r19", TextColor3 = C.Text,
+    BackgroundTransparency = 1, Text = "🥚 EGG LITE · r20", TextColor3 = C.Text,
     Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left,
 }, bar)
 
@@ -1926,7 +1926,8 @@ local function placeHeldEgg(reason)
             if basketDropRemote then basketDropRemote:FireServer() end
             if eggPlacedRemote then eggPlacedRemote:FireServer() end
         end)
-        task.wait(0.4)
+        -- ⏳ r20 : รอ 1 วิ (เดิม 0.4) ก่อน "เปลี่ยนเป็นมือเปล่า" — เหตุผลเดียวกับ grabAndReturn
+        task.wait(1)
         forceBareHands()
         if not heldEggName() then
             logLine("[OK] วาง " .. held .. " แล้ว (รอบ " .. try .. ")")
@@ -1992,7 +1993,9 @@ local function grabAndReturn(egg)
             local base0 = interactPart.Position
             local sp0 = base0 + stands[1]
             local okTP = teleportTo(CFrame.lookAt(sp0, Vector3.new(base0.X, sp0.Y, base0.Z)))
-            task.wait(0.2)
+            -- ⏳ r20 : รอ 1 วิ (เดิม 0.2) หลังวาปถึงหน้าไข่ — ให้ streaming โหลดไข่/พื้นที่
+            --    ก่อนเริ่มเก็บ (มือถือโหลดไม่ทัน → ยิง remote แล้วเกมยังไม่เห็นไข่)
+            task.wait(1)
             logLine("[>] วาร์ปไป " .. eggName .. " (" .. dTo .. " studs)"
                 .. (okTP and "" or " ล้มเหลว"))
         end
@@ -2118,6 +2121,9 @@ local function grabAndReturn(egg)
     if isVolc or dipEnabled then
         setStatus("ดรอปลาวา : " .. eggName, C.Amber)
         logLine("[🌋] เข้าระบบลาวา 1 -> 4 ทันทีหลังย้อนออก")
+        -- ⏳ r20 : รอ 1 วิ ก่อนวาร์ปจุดลาวา — ให้ streaming โหลดเนินลาวา/ภูเขา
+        --    (ออกมาจากถ้ำแล้ว = ปลอดภัย ไม่ชนกฎ "เก็บแล้วบินออก 1.5 วิ")
+        task.wait(1)
         ensureEggInHand(eggName)
         runVolcanoDip()
         ensureEggInHand(eggName)
@@ -2148,7 +2154,9 @@ local function grabAndReturn(egg)
         if basketDropRemote then basketDropRemote:FireServer() end
         if eggPlacedRemote then eggPlacedRemote:FireServer() end
     end)
-    task.wait(0.1)
+    -- ⏳ r20 : รอ 1 วิ (เดิม 0.1) ก่อน "เปลี่ยนเป็นมือเปล่า" — มือถือโหลดไม่ทัน
+    --    (ให้เซิร์ฟประมวลผลว่าวางหลุดก่อนค่อย UnequipTools)
+    task.wait(1)
 
     -- ✋ บังคับถือมือเปล่า (วนตรวจจนกว่าตัวละครจะว่างจริง)
     local bare = forceBareHands()
@@ -2312,9 +2320,11 @@ task.spawn(function()
                 if not isGrabbing then
                     -- 🥚 ยังถือไข่ค้างอยู่? → กลับแปลงวางก่อน "ห้ามวาปไปเก็บใบถัดไป"
                     --    (เป็นที่มาของบัค ถือไข่แล้ววาปทันที + error Can't Teleport While Carrying Eggs)
+                    local justPlaced = false
                     if heldEggName() and os.clock() - lastPlaceAt > 6 then
                         lastPlaceAt = os.clock()
                         placeHeldEgg("ก่อนไปเก็บใบถัดไป")
+                        justPlaced = not heldEggName()   -- วางสำเร็จ = เปลี่ยนเป็นมือเปล่าแล้ว
                     end
 
                     if heldEggName() then
@@ -2326,6 +2336,12 @@ task.spawn(function()
                             logLine("[!] ยังถือ " .. h .. " ค้าง -> ข้ามรอบ ไม่วาปไปเก็บใบถัดไป")
                         end
                     else
+                        -- ⏳ r20 : เพิ่งวางเสร็จ / เพิ่งเปลี่ยนเป็นมือเปล่า → รอ 1 วิ แล้วค่อยวาปไปยกไข่
+                        --    (มือถือโหลดไม่ทัน → วาร์ปเร็วไปแล้วเก็บไม่ติด) · รอเฉพาะรอบที่เพิ่งวาง
+                        if justPlaced then
+                            task.wait(1)
+                            logLine("[⏳] รอ 1 วิ หลังเปลี่ยนเป็นมือเปล่า -> ไปยกไข่ใบถัดไป")
+                        end
                         -- 🔒 กัน "ค้าง" : ถ้า grabAndReturn มี error ต้องปลด isGrabbing เสมอ
                         --    (ไม่งั้นลูปฟาร์มจะหยุดเรียกถาวร → ยืนทิ้งไว้ตรงไข่ ไม่กลับบ้าน)
                         local ok, err = pcall(grabAndReturn, target)
