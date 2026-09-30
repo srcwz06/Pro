@@ -228,6 +228,11 @@ local homeCFrame  = nil
 local dipEnabled  = false    -- 🌋 สวิตช์ดรอปลาวา (กดปุ่มบนหน้าต่าง)
 local dipRunning  = false    -- กันรันซ้อนระหว่างรอบดรอป
 
+-- 💾 ระบบ "หลุดแล้วจำงาน + จำบ้าน" (คัดจากระบบเก่า VIP.txt ตามคำสั่ง)
+--    ไฟล์ + ฟังก์ชันเซฟอยู่ในบล็อกใหญ่ "หลัง getPlotCFrame" (ต้องใช้ตัวหาแปลง)
+local httpService = game:GetService("HttpService")
+local SAVE = {}              -- { file, loaded, push } — รวมเป็นตารางเดียว (เลี่ยงลิมิต 200 local)
+
 -- ============================================================
 -- ส่วนที่ 1 : หน้าต่าง
 -- ============================================================
@@ -293,7 +298,7 @@ local bar = mk("Frame", {
 }, win)
 mk("TextLabel", {
     Size = UDim2.new(1, -80, 1, 0), Position = UDim2.new(0, 11, 0, 0),
-    BackgroundTransparency = 1, Text = "🥚 EGG LITE · r16", TextColor3 = C.Text,
+    BackgroundTransparency = 1, Text = "🥚 EGG LITE · r19", TextColor3 = C.Text,
     Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left,
 }, bar)
 
@@ -381,9 +386,22 @@ local previewBtn = mk("TextButton", {
 }, actions)
 mk("UICorner", { CornerRadius = UDim.new(0, 10) }, previewBtn)
 
+-- 🎛️ แถบ "โหมดแตะไข่" (ใหม่) — ออกแบบแทนการกดค้าง 3 วิ อย่างเดียว (มือถือแตะง่ายกว่า)
+--    · 👆 ใบเดียว = แตะใบใหม่แทนที่ใบเดิม
+--    · 👆 ออโต้ ∞ = แตะ = เพิ่ม/เอาออก "ไม่เคยล้างคิว" (แก้บัคเลือกหลายใบแล้วแตะทีเดียวหลุดหมด)
+local modeRow = mk("Frame", {
+    Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 3,
+}, body)
+local modeBtn = mk("TextButton", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = C.Accent, BorderSizePixel = 0,
+    AutoButtonColor = true, Text = "👆 โหมดแตะ : ใบเดียว", TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold, TextSize = 12,
+}, modeRow)
+mk("UICorner", { CornerRadius = UDim.new(0, 9) }, modeBtn)
+
 -- 3) หัวข้อ "ไข่" (พับได้) — ยุบ 3 label เดิมไว้ในนี้
 local eggHead = mk("TextButton", {
-    Size = UDim2.new(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = 3,
+    Size = UDim2.new(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = 4,
     AutoButtonColor = false, Text = "",
 }, body)
 local eggChev = mk("TextLabel", {
@@ -409,7 +427,7 @@ local grid = mk("ScrollingFrame", {
     Size = UDim2.new(1, 0, 0, 166), BackgroundColor3 = C.BgDark,
     BackgroundTransparency = 0.35, BorderSizePixel = 0, ScrollBarThickness = 4,
     ScrollBarImageColor3 = C.Stroke, AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    CanvasSize = UDim2.new(0, 0, 0, 0), LayoutOrder = 4,
+    CanvasSize = UDim2.new(0, 0, 0, 0), LayoutOrder = 5,
 }, body)
 mk("UICorner", { CornerRadius = UDim.new(0, 10) }, grid)
 mk("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8),
@@ -421,11 +439,11 @@ mk("UIGridLayout", {
 
 -- 5) หัวข้อ "ล็อก" (พับได้)
 local logHead = mk("TextButton", {
-    Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, LayoutOrder = 5,
+    Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, LayoutOrder = 6,
     AutoButtonColor = false, Text = "",
 }, body)
 local logChev = mk("TextLabel", {
-    Size = UDim2.new(0, 14, 0, 22), BackgroundTransparency = 1, Text = "▼",
+    Size = UDim2.new(0, 14, 0, 22), BackgroundTransparency = 1, Text = "▶",
     TextColor3 = C.Muted, Font = Enum.Font.GothamBold, TextSize = 9,
 }, logHead)
 mk("TextLabel", {
@@ -441,10 +459,10 @@ local logClear = mk("TextButton", {
 }, logHead)
 mk("UICorner", { CornerRadius = UDim.new(0, 6) }, logClear)
 
--- 6) ล็อก : 120px (เดิม 64px) — อ่านได้ ~9 บรรทัด
+-- 6) ล็อก : 120px — ⭐ "ปิดค้างไว้ตลอดตอนรัน" (ตามคำสั่ง) · กดหัวข้อ "📋 ล็อก" เพื่อกางเอง
 local logBox = mk("Frame", {
     Size = UDim2.new(1, 0, 0, 120), BackgroundColor3 = C.Log,
-    BackgroundTransparency = 0.15, BorderSizePixel = 0, LayoutOrder = 6,
+    BackgroundTransparency = 0.15, BorderSizePixel = 0, LayoutOrder = 7, Visible = false,
 }, body)
 mk("UICorner", { CornerRadius = UDim.new(0, 8) }, logBox)
 local logLbl = mk("TextLabel", {
@@ -457,7 +475,7 @@ local logLbl = mk("TextLabel", {
 -- 7) footer : ตัวนับ + ปุ่มทำลาย (แยกห่างจากปุ่มหลัก กันคลิกพลาด)
 local foot = mk("Frame", {
     Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = C.BgDark,
-    BackgroundTransparency = 0.35, BorderSizePixel = 0, LayoutOrder = 7,
+    BackgroundTransparency = 0.35, BorderSizePixel = 0, LayoutOrder = 8,
 }, body)
 mk("UICorner", { CornerRadius = UDim.new(0, 9) }, foot)
 local countLbl = mk("TextLabel", {
@@ -593,6 +611,22 @@ end)
 -- ============================================================
 local eggMode = {}   -- eggMode[name] = "once" | "auto"
 
+-- 🎛️ โหมดของ "การแตะ" (ปุ่ม 👆 แถบโหมด) — once = ใบเดียว · auto = ออโต้ ∞
+local tapMode = "once"
+local function setTapModeUI()
+    local auto = (tapMode == "auto")
+    modeBtn.Text = auto and "👆 โหมดแตะ : ออโต้ ∞" or "👆 โหมดแตะ : ใบเดียว"
+    modeBtn.BackgroundColor3 = auto and C.Green or C.Accent
+end
+
+modeBtn.Activated:Connect(function()
+    tapMode = (tapMode == "auto") and "once" or "auto"
+    setTapModeUI()
+    logLine("[👆] โหมดแตะ = " .. (tapMode == "auto"
+        and "ออโต้ ∞ (แตะ = เพิ่ม/เอาออก ไม่ล้างคิว)"
+        or "ใบเดียว (แตะ = เปลี่ยนเป็นใบเดียว)"))
+end)
+
 local function hasAutoMode()
     for _, n in ipairs(selectedEggs) do
         if eggMode[n] == "auto" then return true end
@@ -632,6 +666,7 @@ local function selectOnce(name)
     eggMode[name] = "once"
     refreshSelection()
     logLine("[👆] แตะ " .. name .. " → ใบเดียว (เสร็จแล้วหยุดเอง)")
+    if SAVE.push then pcall(SAVE.push) end   -- 💾 จำงานทันที (แตะ/กดค้าง)
 end
 
 -- 👆 "กดค้าง" = เพิ่มแบบออโต้ (ฟาร์มยาว ๆ) — ถ้ามีอยู่แล้ว = เอาออก
@@ -649,21 +684,43 @@ local function toggleAuto(name)
     else
         if not found then table.insert(selectedEggs, name) end
         eggMode[name] = "auto"
+        -- ⚠️ บังคับโหมดแตะเป็น "ออโต้" ด้วย → แตะครั้งถัดไปจะเพิ่ม/เอาออก ไม่ล้างคิว (บัคมือถือเดิม)
+        tapMode = "auto"; setTapModeUI()
         logLine("[👆] กดค้าง " .. name .. " → ออโต้ ∞ (ฟาร์มยาว)")
     end
     refreshSelection()
+    if SAVE.push then pcall(SAVE.push) end   -- 💾 จำงานทันที (แตะ/กดค้าง)
 end
 
 -- ⏱️ ระบบกดค้าง 3 วิ — ใช้ได้ทั้งเมาส์และนิ้ว (มือถือ)
+--    ⚠️ แก้บัคมือถือ : "ปล่อยนิ้ว" ห้ามเลือกไข่อีกต่อไป — เดิม UIS.InputEnded → สกรอลกริดแล้วนิ้วปล่อย
+--       บน tile =โดนนับว่า "แตะ" → selectOnce ล้างคิวทิ้งหมด
+--       ตอนนี้ "เลือก" เกิดจาก tile.Activated เท่านั้น (Roblox กรองการเลื่อนนิ้วให้แล้ว)
 local holdName, holdProg, holdTween, holdSeq = nil, nil, nil, 0
-local function cancelHold(fire)
+local holdDoneName = nil   -- ไข่ที่ "กดค้างครบ 3 วิ" ไปแล้ว → ข้ามตอนปล่อยนิ้ว (กินผลซ้ำ)
+
+local function holdStop()
     holdSeq = holdSeq + 1                      -- ยกเลิก timer เก่าที่ค้างอยู่
-    local n = holdName
     if holdTween then pcall(function() holdTween:Cancel() end); holdTween = nil end
     if holdProg then holdProg.Visible = false; holdProg = nil end
     holdName = nil
-    if not n then return end
-    if fire then toggleAuto(n) else selectOnce(n) end
+end
+
+-- 👆 แตะ tile = เลือกตาม "โหมดปัจจุบัน"
+--    · ใบเดียว           → แตะใบใหม่ = เปลี่ยนเป็นใบเดียว / แตะใบเดิม = เอาออกจากคิว
+--    · ออโต้ (หรือมีไข่ออโต้อยู่ในคิว) → แตะ = เพิ่ม/เอาออก "อย่างเดียว" ไม่เคยล้างคิว
+local function tapSelect(name)
+    if tapMode == "auto" or hasAutoMode() then
+        toggleAuto(name)
+    elseif #selectedEggs == 1 and selectedEggs[1] == name then
+        for i = #selectedEggs, 1, -1 do selectedEggs[i] = nil end
+        eggMode = {}
+        refreshSelection()
+        logLine("[👆] เอา " .. name .. " ออกจากคิว")
+        if SAVE.push then pcall(SAVE.push) end
+    else
+        selectOnce(name)
+    end
 end
 
 for i, row in ipairs(EGG_DATA) do
@@ -742,17 +799,28 @@ for i, row in ipairs(EGG_DATA) do
         holdTween = TweenService:Create(prog, TweenInfo.new(3, Enum.EasingStyle.Linear),
                                         { Size = UDim2.new(1, 0, 0, 3) })
         holdTween:Play()
-        task.delay(3, function()                  -- ครบ 3 วิ = เลือกแบบออโต้
-            if holdSeq == seq then cancelHold(true) end
+        task.delay(3, function()                  -- ครบ 3 วิ = เพิ่มแบบออโต้
+            if holdSeq == seq then
+                holdDoneName = fullName
+                holdStop()
+                toggleAuto(fullName)
+            end
         end)
+    end)
+
+    -- 👆 แตะสั้นจริง ๆ = เลือกตามโหมดปัจจุบัน (Roblox กรองการเลื่อนนิ้ว/สกรอลให้แล้ว)
+    tile.Activated:Connect(function()
+        if holdDoneName == fullName then holdDoneName = nil; return end  -- เพิ่งกดค้างครบ 3 วิ → ข้าม
+        tapSelect(fullName)
     end)
 end
 
--- 🖐 ปล่อยก่อนครบ 3 วิ = "แตะปกติ" (เลือกใบเดียว)
+-- 🖐 ปล่อยนิ้ว = "แค่ปิดแถบความคืบหน้า" — ไม่เลือกไข่ใด ๆ (การเลือกมาจาก tile.Activated)
+--    ⚠️ นี่คือต้นเหตุบัคมือถือเดิม : สกรอลกริด → นิ้วปล่อยบน tile → เคยโดน selectOnce ล้างคิวทิ้งหมด
 UIS.InputEnded:Connect(function(io)
     if io.UserInputType ~= Enum.UserInputType.MouseButton1
     and io.UserInputType ~= Enum.UserInputType.Touch then return end
-    if holdName then cancelHold(false) end
+    holdStop()
 end)
 
 refreshSelection()
@@ -891,6 +959,178 @@ local function getPlotCFrame()
     end)
     if ok2 and a2 then return a2 end
     return nil
+end
+
+-- ============================================================
+-- 💾 ระบบ "หลุดแล้วจำงาน + จำบ้าน" (ตามระบบเก่า VIP.txt — ทำเฉพาะระบบนี้ ไม่แตะอย่างอื่น)
+--    · จำงาน : ไข่ที่ติ๊ก + โหมด(ใบเดียว/ออโต้) + ยังฟาร์มอยู่ไหม + สวิตช์ลาวา
+--    · จำบ้าน : เซฟ "สัมพัทธ์กับแปลง" → แปลงถูกสุ่มย้ายก็ยังกลับจุดที่ถูกต้อง
+--    · ไฟล์   : egg_lite_<PlaceId>.json (อยู่ใน workspace ของตัวรัน)
+--    · ⛔ ไม่แตะระบบอื่น : เก็บไข่ / Volcanic / ลาวา / ESP / noclip / shield / UI
+-- ============================================================
+do
+    SAVE.file = "egg_lite_" .. tostring(game.PlaceId) .. ".json"
+
+    -- 📖 โหลดไฟล์ตอนเริ่ม (autoexec รันใหม่ / หลุด / รีจอย = โหลดกลับอัตโนมัติ)
+    pcall(function()
+        if isfile and isfile(SAVE.file) then
+            local raw = readfile(SAVE.file)
+            if raw and #raw > 0 then
+                local okD, data = pcall(function() return httpService:JSONDecode(raw) end)
+                if okD and type(data) == "table" then SAVE.loaded = data end
+            end
+        end
+    end)
+    local L = SAVE.loaded
+
+    -- 🧩 กู้ "งาน" : ไข่ที่ติ๊ก + โหมด + สวิตช์ลาวา (สถานะฟาร์มกู้ทีหลัง ต้องอัปเดตปุ่มก่อน)
+    if L then
+        if type(L.selectedEggs) == "table" then
+            for i = #selectedEggs, 1, -1 do selectedEggs[i] = nil end
+            for _, v in ipairs(L.selectedEggs) do
+                if type(v) == "string" and #selectedEggs < #EGG_DATA then
+                    table.insert(selectedEggs, v)
+                end
+            end
+        end
+        if type(L.eggMode) == "table" then
+            for k, v in pairs(L.eggMode) do
+                if type(k) == "string" and (v == "once" or v == "auto") then eggMode[k] = v end
+            end
+        end
+        if L.dipEnabled ~= nil then dipEnabled = (L.dipEnabled == true) end
+    end
+
+    -- 🏠 กู้ "บ้าน" แบบสัมพัทธ์กับแปลง — แปลงสุ่มย้ายทุกเซิร์ฟก็ยังกลับจุดที่ถูก
+    if L and type(L.homeRel) == "table" and #L.homeRel == 12 then
+        task.spawn(function()
+            local relArr = L.homeRel
+            local deadline = os.clock() + 120
+            while os.clock() < deadline do
+                local okP, plotCF = pcall(getPlotCFrame)
+                if okP and plotCF then
+                    pcall(function()
+                        homeCFrame = plotCF * CFrame.new((unpack or table.unpack)(relArr))
+                    end)
+                    break
+                end
+                task.wait(2)
+            end
+        end)
+    elseif L and type(L.home) == "table" and #L.home == 12 then
+        -- รูปแบบเก่า (พิกัดสัมบูรณ์) — ใช้ชั่วคราว แล้วรอตรวจว่าแปลงย้ายหรือยัง
+        pcall(function() homeCFrame = CFrame.new((unpack or table.unpack)(L.home)) end)
+        task.spawn(function()
+            local deadline = os.clock() + 120
+            while os.clock() < deadline do
+                local okP, plotCF = pcall(getPlotCFrame)
+                if okP and plotCF then
+                    if homeCFrame then
+                        -- บ้านห่างแปลง > 60 studs = พิกัดเก่าตายตัว (แปลงย้ายแล้ว) → ใช้จุดแปลงใหม่
+                        if (homeCFrame.Position - plotCF.Position).Magnitude > 60 then
+                            homeCFrame = plotCF
+                        end
+                    end
+                    break
+                end
+                task.wait(2)
+            end
+        end)
+    end
+
+    -- ▶️ กู้ "การทำงานต่อ" : ตอนหลุดยังฟาร์มอยู่ → เปิดฟาร์มต่อทันที
+    if dipEnabled then dipBtn.BackgroundColor3 = C.Green end
+    refreshSelection()
+    if L and L.isFarming == true and #selectedEggs > 0 then
+        isFarming = true
+        startBtn.Text = "⏹ หยุดฟาร์ม"
+        startBtn.BackgroundColor3 = C.Red
+        setDot(true)
+        setStatus("กำลังฟาร์ม ...", C.Green)
+        logLine("[💾] โหลดเซฟ : ฟาร์มต่อ " .. #selectedEggs .. " ไข่ ("
+            .. (hasAutoMode() and "ออโต้ ∞" or "ใบเดียว") .. ")"
+            .. (dipEnabled and " · 🌋ลาวาเปิด" or ""))
+    elseif L then
+        logLine("[💾] โหลดเซฟ : " .. #selectedEggs .. " ไข่ในคิว"
+            .. (dipEnabled and " · 🌋ลาวาเปิด" or ""))
+    end
+
+    -- ✍️ เขียนสถานะลงไฟล์ (ห้ามเขียนทับ "บ้าน" เป็น nil — ลูปอัตโนมัติรันทุก 5 วิจะลบบ้านทิ้งเอง)
+    SAVE.push = function()
+        pcall(function()
+            if not writefile then return end
+
+            local homeRelArr, homeArr = nil, nil
+            if homeCFrame then
+                -- 🏠 เซฟแบบสัมพัทธ์กับแปลง (คือหัวใจของ "บ้านย้ายตามแปลง")
+                local okP, plotCF = pcall(getPlotCFrame)
+                if okP and plotCF then
+                    pcall(function()
+                        local rel = plotCF:ToObjectSpace(homeCFrame)
+                        local okR, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12 =
+                            pcall(function() return rel:GetComponents() end)
+                        if okR then
+                            homeRelArr = {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12}
+                        end
+                    end)
+                end
+                -- เผื่อฉุกเฉิน: หาแปลงไม่เจอ → เก็บพิกัดสัมบูรณ์ไว้ก่อน
+                local okC, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12 =
+                    pcall(function() return homeCFrame:GetComponents() end)
+                if okC then homeArr = {a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12} end
+            else
+                -- 🛡️ ยังไม่มีบ้าน (เพิ่งเข้าเกม) → คงค่าเดิมในไฟล์ไว้ ห้ามเขียนทับเป็น nil
+                pcall(function()
+                    if isfile and isfile(SAVE.file) then
+                        local raw = readfile(SAVE.file)
+                        if raw and #raw > 0 then
+                            local okD, d = pcall(function() return httpService:JSONDecode(raw) end)
+                            if okD and type(d) == "table" then
+                                if type(d.homeRel) == "table" then homeRelArr = d.homeRel end
+                                if type(d.home) == "table" then homeArr = d.home end
+                            end
+                        end
+                    end
+                end)
+            end
+
+            writefile(SAVE.file, httpService:JSONEncode({
+                selectedEggs = selectedEggs,
+                eggMode      = eggMode,
+                isFarming    = isFarming,
+                dipEnabled   = dipEnabled,
+                homeRel      = homeRelArr,
+                home         = homeArr,
+            }))
+        end)
+    end
+
+    -- ⏱️ เซฟอัตโนมัติทุก 5 วิ — เขียนเฉพาะตอนค่าเปลี่ยน (ไม่เขียนไฟล์รัว ๆ)
+    task.spawn(function()
+        local function modeSnap()
+            local ks = {}
+            for k in pairs(eggMode) do ks[#ks + 1] = k end
+            table.sort(ks)
+            local out = {}
+            for _, k in ipairs(ks) do out[#out + 1] = k .. "=" .. tostring(eggMode[k]) end
+            return table.concat(out, ",")
+        end
+        local lastSnap = ""
+        while task.wait(5) do
+            local snap = table.concat(selectedEggs, "|") .. "#" .. modeSnap()
+                .. "#" .. tostring(isFarming) .. "#" .. tostring(dipEnabled)
+                .. "#" .. (homeCFrame and tostring(homeCFrame.Position) or "none")
+            if snap ~= lastSnap then
+                lastSnap = snap
+                pcall(SAVE.push)
+            end
+        end
+    end)
+
+    -- 💾 เซฟครั้งสุดท้ายก่อนออก / หลุด / ถูกเตะ (คือตอน "หลุด" พอดี)
+    Players.PlayerRemoving:Connect(function(plr)
+        if plr == player then pcall(SAVE.push) end
+    end)
 end
 
 -- 📡 สแกนไข่ทั้งหมดในแมพ → คืนตาราง { "Solaris Egg" = {egg, egg, ...}, ... }
@@ -1101,7 +1341,9 @@ local function runVolcanoDip()
                 return
             end
             teleportTo(CFrame.new(DIP_WP[i]))
-            task.wait(getNaturalDelay())
+            -- ⏳ r19 : รอ 1 วิ/จุด (เดิม 0.05-0.15 วิ) — ให้เกมนับว่า "ไต่ถึง" แต่ละขั้น + โหลดภูเขา
+            --    (ปลายดรอปมีรอ 10 วิอยู่แล้ว → ไม่เสียเวลาฟรี)
+            task.wait(1)
         end
 
         -- กด "ทิ้งในภูเขาไฟ" : remote ก่อน → เว้น 1 วิ → ค่อยกดปุ่ม UI
@@ -1327,7 +1569,9 @@ local function volcEnterTunnel()
     for i = 1, 2 do
         local g = VOLC_GATE[i]
         teleportTo(CFrame.lookAt(g[1], g[1] + g[2]))
-        task.wait(getNaturalDelay())
+        -- ⏳ r19 : รอ 2 วิ/จุด (เดิม 0.05-0.15 วิ) — จุดสูง 41,000+ studs ต้องรอ streaming
+        --    โหลด VolcanoEntrance ก่อน = แก้บั๊ก "[X] ไม่พบ VolcanoEntrance" โดยตรง
+        task.wait(2)
     end
 
     volcFlyTo(VOLC_GATE[3][1], 260)   -- ลอยลงมา
@@ -1673,7 +1917,9 @@ local function placeHeldEgg(reason)
 
     setStatus("กลับแปลงวาง " .. held, C.Amber)
     teleportTo(homeCFrame)
-    task.wait(0.3)
+    -- ⏳ r19 : รอ 1.5 วิ (เดิม 0.3) — ให้เซิร์ฟยืนยันตำแหน่งใหม่ "ก่อน" ยิง BasketDrop/EggPlaced
+    --    ถ้ารีบยิง = เซิร์ฟยังคิดว่าเราอยู่นอกแปลง → วางไข่ไม่ติด
+    task.wait(1.5)
 
     for try = 1, 3 do
         pcall(function()
@@ -1889,7 +2135,8 @@ local function grabAndReturn(egg)
         local h1 = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         local dHome = h1 and math.floor((homeCFrame.Position - h1.Position).Magnitude) or -1
         local okTP = teleportTo(homeCFrame)
-        task.wait(0.2)
+        -- ⏳ r19 : รอ 1.5 วิ (เดิม 0.2) — เหตุผลเดียวกับ placeHeldEgg : ให้เซิร์ฟ sync ตำแหน่งก่อนวาง
+        task.wait(1.5)
         -- ถ้าขึ้น "0 studs" = พิกัดบ้านผิด (ชี้ไปที่เดียวกับที่ยืนอยู่)
         logLine("[>] กลับแปลง " .. dHome .. " studs" .. (okTP and "" or " ล้มเหลว"))
     else
@@ -2051,6 +2298,7 @@ local function stopFarming(why)
     setStatus(why or "หยุดอยู่", why and C.Amber or C.Sub)
     logLine("[||] " .. (why or "หยุดฟาร์ม"))
     task.spawn(forceBareHands)
+    if SAVE.push then pcall(SAVE.push) end   -- 💾 จำงาน (สถานะหยุด)
 end
 
 task.spawn(function()
@@ -2454,6 +2702,7 @@ startBtn.Activated:Connect(function()
         logLine("[>] เริ่มฟาร์ม ใบเดียว - " .. (selectedEggs[1] or "?")
             .. " (เก็บหมดในแมพแล้วหยุดเอง)")
     end
+    if SAVE.push then pcall(SAVE.push) end   -- 💾 จำงาน + จำบ้าน (บ้านตั้งตรงบรรทัดบน)
 end)
 
 -- 🌋 สวิตช์เปิด/ปิดดรอปลาวา (ปุ่มไอคอน — สีเขียว = เปิด)
@@ -2468,11 +2717,16 @@ dipBtn.Activated:Connect(function()
         logLine("[🌋] ปิดดรอปลาวา - เก็บแล้วกลับแปลงเลย")
         setStatus("ลาวา : ปิด")
     end
+    if SAVE.push then pcall(SAVE.push) end   -- 💾 จำสวิตช์ลาวา
 end)
 
 -- 🔁 รีจอย — ระบบเดิมจาก VIP.txt (คัดมาใช้ตามคำสั่งผู้ใช้)
 --    ⛔ ไม่ใช้ SetTeleportGui อีก → ตัวนี้ทำให้ติด error 773 "เทเลพอร์ตไม่สำเร็จ"
 rejoinBtn.Activated:Connect(function()
+    -- 💾 เซฟ "ยังฟาร์มอยู่" ก่อนรีจอย → เข้ามาใหม่ระบบจะฟาร์มต่อให้เอง
+    --    (ต้องเขียนก่อนบรรทัด `isFarming = false` ข้างล่าง ไม่งั้นจะจำว่า "หยุดแล้ว")
+    if SAVE.push then pcall(SAVE.push) end
+
     local placeId, jobId = game.PlaceId, game.JobId
 
     isFarming = false
