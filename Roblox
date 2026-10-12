@@ -32,10 +32,14 @@
 --    · 🌋 r25 : ดรอปลาวาเปิดเป็นค่าเริ่มต้นตอนโหลด (ปุ่ม 🌋 = สีเขียวตั้งแต่เปิดสคริปต์)
 --    · ⏱️ r26 : Anti-AFK แกะมาจาก 2.lua ตามคำสั่ง (คัดลอกดั้งเดิม ห้ามเขียนใหม่)
 --      — Idled → VirtualUser กดแทน · กันเด้งออกห้องตอนค้าง (timeout 20 นาที)
---    · ☯️ r44 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
+--    · ☯️ r46 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
 --      · r43 : ไม่จำกัดระยะเดินทางแล้ว — ESP เห็นที่ไหน = บินไปเก็บที่นั่น (งบเวลาบินปรับตามระยะ)
 --      · r44 : เปิดคู่กับ 🍬 ได้ — หยิน-หยาง "สำคัญสุด" : แคนดี้จบรอบส่งบ้านก่อนแล้วหยุดรอ
 --              (ธง YY_HAS_DROPS/YY_MOVING/CANDY_MOVING กันสองระบบแย่งตัวบิน)
+--      · r45 : 🔬 probe — เก็บสำเร็จแล้วเทียบค่าเกมก่อน/หลัง (Player/Char/Ritual/NoSave/แท่นวาง)
+--              บอกว่าเกมเก็บสถานะ "ถือครึ่งหนึ่ง" ไว้ที่ไหนจริง (ไม่ใช่ระบบจำเอง)
+--              ✅ ผลจริง : Player:GetAttribute("RitualYin"/"RitualYang") = true ทั้งคู่ = เก็บครบ
+--      · r46 : 🔔 เก็บครบทั้งคู่ (ค่าจริงจากเกม) = เล่นเสียงแจ้งเตือน + ป๊อป เหมือนแจ้งเตือนไข่
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -3606,14 +3610,20 @@ local function stopAlertNow()
     isNotifying = false
 end
 
-local function fireAlert(name)
+-- msg (ถ้ามี) = ข้อความป๊อปเอง (ใช้กับ ☯️ เก็บครบ) ; ไม่ส่ง = ข้อความไข่เดิม
+local function fireAlert(name, msg)
     if not isNotifying then pcall(function() alertSound.TimePosition = 0 end) end
     isNotifying = true
     alertAt = os.clock()               -- ⏱️ เริ่มนับ 1 นาทีจากตรงนี้
-    popupMsg.Text = "🎉 พบไข่แจ้งเตือน!\n[" .. name .. "]"
+    if msg then
+        popupMsg.Text = msg
+        logLine("[🔔] " .. (string.gsub(msg, "\n", " ")))
+    else
+        popupMsg.Text = "🎉 พบไข่แจ้งเตือน!\n[" .. name .. "]"
+        logLine("[🔔] พบ " .. name .. " ในแมพ ! (แสดง 1 นาทีแล้วปิดเอง)")
+    end
     popupFrame.Visible = true
     pcall(function() alertSound:Play() end)
-    logLine("[🔔] พบ " .. name .. " ในแมพ ! (แสดง 1 นาทีแล้วปิดเอง)")
 end
 
 notifyBtn.Activated:Connect(function()
@@ -4485,7 +4495,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         .. " · 🎃 แต้มครบ " .. eggPrice .. " = บินไปร้านแล้วซื้อ Halloween Egg ให้เลย")
 end)()
 -- ============================================================
--- ☯️ r44 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
+-- ☯️ r46 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
 --    · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --      (ObjectText "Yin Half"/"Yang Half" · Action "Collect"
 --       Hold 0.7 วิ · MaxActivationDistance 18.6 · ⭐ MaxHorizontalActivationDistance = 14)
@@ -4507,6 +4517,7 @@ end)()
     local flyLogAt   = 0      -- กัน spam ลอจตอนบิน (ลูปมันวิ่งทุก 0.5 วิ)
     local errLogAt   = 0      -- กัน spam ลอจ error
     local yyEspOn    = false  -- 👁️ ESP หยิน-หยาง เปิด/ปิด
+    local yyAlerted  = false  -- 🔔 เก็บครบทั้งคู่แล้ว = แจ้งครั้งเดียว (รีเซ็ตเมื่อค่าเกมกลับเป็น false)
     local yyEspCount = -1     -- จำนวนป้ายล่าสุด (กัน spam ลอจตอนนับเปลี่ยน)
     local yyEspTags  = {}     -- { {Part=, Name=} } ป้ายที่วางอยู่ตอนนี้
     local yyEspBtn   = nil    -- ปุ่ม ☯️ ESP (ประกาศไว้ก่อน เพราะ toggle อยู่ใน IIFE นี้)
@@ -4616,6 +4627,60 @@ end)()
         return ok, err
     end
 
+    -- 🔬 r45 : probe "เก็บแล้วเกมเก็บไว้ไหน" — ถ่ายภาพค่าทั้งหมดก่อน/หลังยิง แล้วเทียบที่เปลี่ยน
+    --    ถ้ามีค่าเปลี่ยน = นั่นคือ "ที่เก็บจริง" ของเกม (ไม่ใช่ระบบเราจำเอง)
+    --    ดู: attributes ผู้เล่น/ตัวละคร/พิธี + ค่าใน NoSaveData + prompt แท่นวาง Yin/Yang
+    local function yySnap()
+        local s = {}
+        local function grab(pfx, obj)
+            if not obj then return end
+            pcall(function()
+                for k, v in pairs(obj:GetAttributes()) do s[pfx .. "." .. k] = tostring(v) end
+            end)
+            pcall(function()
+                for _, c in ipairs(obj:GetChildren()) do
+                    if c:IsA("ValueBase") then s[pfx .. "." .. c.Name] = tostring(c.Value) end
+                end
+            end)
+        end
+        grab("Player", player)
+        grab("Char", player.Character)
+        local r = ritualRoot()
+        grab("Ritual", r)
+        grab("NoSave", player:FindFirstChild("NoSaveData"))
+        pcall(function()
+            local alt = r and r:FindFirstChild("Altar")
+            for _, nm in ipairs({ "YinPlacement", "YangPlacement" }) do
+                local host = alt and alt:FindFirstChild(nm)
+                local pr = host and host:FindFirstChild("RitualPrompt")
+                if pr then
+                    s["Prompt." .. nm .. ".Enabled"] = tostring(pr.Enabled)
+                    for k, v in pairs(pr:GetAttributes()) do
+                        s["Prompt." .. nm .. "." .. k] = tostring(v)
+                    end
+                end
+            end
+        end)
+        return s
+    end
+
+    local function yySnapDiff(before, tag)
+        local after = yySnap()
+        local ch = {}
+        for k, v in pairs(after) do
+            if before[k] ~= v then table.insert(ch, k .. " " .. tostring(before[k]) .. " -> " .. v) end
+        end
+        for k, v in pairs(before) do
+            if after[k] == nil then table.insert(ch, k .. " " .. v .. " -> (หายไป)") end
+        end
+        if #ch > 0 then
+            logLine("[☯️🔬] " .. tag .. " ค่าเปลี่ยน : " .. table.concat(ch, " | "))
+        else
+            logLine("[☯️🔬] " .. tag
+                .. " : ไม่มีค่าอะไรเปลี่ยน -> ฝั่งเซิร์ฟไม่ส่งสถานะ 'ถือครึ่ง' มาให้เห็น (ใช้ Phase ของพิธีแทน)")
+        end
+    end
+
     -- หนึ่งรอบงาน : เก็บ Yin/Yang Half ที่ใกล้ที่สุด (ยังไม่มีของ = รอเฉย ๆ)
     local function yyStep()
         local h = hrp()
@@ -4628,6 +4693,18 @@ end)()
         end
 
         YY_HAS_DROPS = (#drops > 0)      -- 🤝 บอก 🍬 ว่ามีของอยู่ในแมพ (แคนดี้หยุดรอเมื่อ true)
+
+        -- 🔔 r46 : เก็บครบทั้งคู่ (ค่าจริงจากเกม RitualYin/RitualYang) = เล่นเสียงแจ้งเตือนครั้งเดียว
+        local yinOk  = player:GetAttribute("RitualYin") == true
+        local yangOk = player:GetAttribute("RitualYang") == true
+        if not (yinOk and yangOk) then
+            yyAlerted = false           -- ยังไม่ครบ/ค่าถูกรีเซ็ต -> รอบหน้าแจ้งได้อีก
+        elseif not yyAlerted then
+            yyAlerted = true
+            setStatus("หยิน-หยาง : เก็บครบ ✅", C.Green)
+            fireAlert("หยิน-หยาง", "☯️ เก็บ Yin/Yang ครบแล้ว!\n[Yin ✅ · Yang ✅]")
+        end
+
         if CANDY_MOVING then return end  -- 🍬 แคนดี้กำลังบิน/ส่งบ้าน -> รอให้จบรอบก่อน (ตามคำสั่ง)
 
         -- 📌 บันทึก Phase ของพิธีเวลาเปลี่ยน (กันเดาชื่อ phase ตอนเปิดถ้ำผิด)
@@ -4694,12 +4771,17 @@ end)()
             end
             -- ⭐ HoldDuration จริงของ prompt หยิน-หยาง = 0.7 วิ (ไม่ใช่ 0.2 เหมือนแคนดี้) → ยืมค่าจาก prompt เอง
             local hold = tonumber(best.prompt.HoldDuration) or 0.7
+            local halfName = tostring(best.prompt.ObjectText or "หยิน/หยาง")  -- 🔬 ชื่อจริงจาก prompt (บอกว่าเก็บอันไหน)
+            local snap0 = yySnap()               -- 🔬 ถ่ายภาพ "ที่เก็บจริงของเกม" ก่อนยิง
             local ok, err = fireHeld(best.prompt, hold)
             if ok then
                 got = got + 1
                 setStatus("☯️ เก็บหยิน-หยาง #" .. got, C.Green)
-                logLine("[☯️] เก็บหยิน/หยาง #" .. got .. " ที่ " .. math.floor(bD)
+                logLine("[☯️] เก็บ " .. halfName .. " #" .. got .. " ที่ " .. math.floor(bD)
                     .. " studs (กดค้าง " .. hold .. " วิ · คูลดาวน์เกม 2 วิ)")
+                task.delay(1.6, function()          -- 🔬 รอเกมประมวลผลก่อนเทียบค่า
+                    pcall(yySnapDiff, snap0, "หลังเก็บ " .. halfName)
+                end)
                 task.wait(hold + 0.3)
                 if best.obj.Parent and best.prompt.Parent then
                     pcall(function() best.prompt:InputHoldBegin() end)  -- ยิงแล้วยังอยู่ = กดค้างซ้ำ
@@ -4734,6 +4816,9 @@ end)()
             -- (r44) ไม่สั่ง 🍬 หยุดแล้ว — เปิดคู่กันได้ แคนดี้จะส่งบ้านก่อนแล้วหยุดรอพวกเรา
             yyBtn.BackgroundColor3 = C.Green
             lastScanAt = -999        -- เปิดปุ๊บ = สแกนแมพใหม่ทันที
+            -- 🔔 ถ้าเปิดมา "ครบแล้ว" อยู่แล้ว = ห้ามแจ้งซ้ำ (รอรอบใหม่ที่ค่ากลับ false ก่อน)
+            yyAlerted = (player:GetAttribute("RitualYin") == true
+                and player:GetAttribute("RitualYang") == true)
             logLine("[☯️] เปิดฟาร์มหยิน-หยาง : เก็บ Yin/Yang Half (ยิงเมื่ออยู่เหนือของ ≤ "
                 .. CFG.YY_PICK_RANGE .. " studs · กดค้างตาม HoldDuration จริง · คูลดาวน์ "
                 .. CFG.YY_COOLDOWN .. " วิ) — เก็บอย่างเดียว ไม่วางที่แท่น · ⭐ สำคัญสุดเหนือ 🍬 (แคนดี้หยุดรอให้)")
@@ -4881,7 +4966,7 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r44 ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r46 ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
