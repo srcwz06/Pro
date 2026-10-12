@@ -32,8 +32,10 @@
 --    · 🌋 r25 : ดรอปลาวาเปิดเป็นค่าเริ่มต้นตอนโหลด (ปุ่ม 🌋 = สีเขียวตั้งแต่เปิดสคริปต์)
 --    · ⏱️ r26 : Anti-AFK แกะมาจาก 2.lua ตามคำสั่ง (คัดลอกดั้งเดิม ห้ามเขียนใหม่)
 --      — Idled → VirtualUser กดแทน · กันเด้งออกห้องตอนค้าง (timeout 20 นาที)
---    · ☯️ r43 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
+--    · ☯️ r44 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
 --      · r43 : ไม่จำกัดระยะเดินทางแล้ว — ESP เห็นที่ไหน = บินไปเก็บที่นั่น (งบเวลาบินปรับตามระยะ)
+--      · r44 : เปิดคู่กับ 🍬 ได้ — หยิน-หยาง "สำคัญสุด" : แคนดี้จบรอบส่งบ้านก่อนแล้วหยุดรอ
+--              (ธง YY_HAS_DROPS/YY_MOVING/CANDY_MOVING กันสองระบบแย่งตัวบิน)
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -41,7 +43,7 @@
 --      · ของเกิดเฉพาะตอนพิธีทำงาน (Phase "AwaitingHalf") — ยังไม่เกิด = รอเฉย ๆ ห้ามบินไปแท่น
 --      · บินลอย "เหนือ" จุดเก็บ (ห้ามลดตัวลงไป — สัตว์จมดินติด) แล้วยิง prompt ด้วย fireproximityprompt
 --      · ⛔ กติกาเกม : ถือไข่อยู่ = เก็บไม่ได้เลย (IsLocalCarrying) → ระบบจะเตือนในล็อก
---      · ⛔ mutual exclusion กับ 🍬 แคนดี้ + ฟาร์มไข่ (เลือกได้ทีละระบบ — ไม่แย่งตัวบิน)
+--      · ⛔ mutual exclusion เหลือแค่ "ฟาร์มไข่" (ฟาร์มไข่หยุดทั้งคู่) · 🍬 ↔ ☯️ เปิดพร้อมกันได้ (r44)
 --
 -- ⛔ ไม่ยิง remote "TeleportToPlot" เด็ดขาด
 --    (ตามคำสั่ง — กันอาการ "Can't Teleport While Carrying Eggs")
@@ -309,8 +311,12 @@ local EGG_DATA = {
 local selectedEggs = {}      -- ลำดับในตาราง = ลำดับความสำคัญตอนสแกน
 local isFarming   = false
 local isGrabbing  = false
-local CANDY_STOP  = nil      -- 🍬 mutual exclusion : ฟาร์มไข่กับฟาร์มแคนดี้ "เลือกได้ทีละระบบ"
-local YY_STOP     = nil      -- ☯️ mutual exclusion : หยิน-หยาง กับ แคนดี้/ฟาร์มไข่ เลือกได้ทีละระบบ
+local CANDY_STOP  = nil      -- 🍬 mutual exclusion : ฟาร์มไข่สั่งปิดแคนดี้ (เลือกได้ทีละระบบ)
+local YY_STOP     = nil      -- ☯️ mutual exclusion : ฟาร์มไข่สั่งปิดหยิน-หยาง (เลือกได้ทีละระบบ)
+-- 🤝 ธงส่วนกลาง 🍬 ↔ ☯️ (r44 : เปิดคู่กันได้ — หยิน-หยางสำคัญสุด แคนดี้ยอมหยุดรอ)
+local YY_HAS_DROPS = false   -- ☯️ มี Yin/Yang Half ตกอยู่ในแมพ (แคนดี้หยุดรอเมื่อ true)
+local YY_MOVING    = false   -- ☯️ กำลังบินอยู่ (แคนดี้ต้องรอ)
+local CANDY_MOVING = false   -- 🍬 กำลังบิน/ส่งบ้านอยู่ (☯️ ต้องรอ)
 local homeCFrame  = nil
 local dipEnabled  = true     -- 🌋 สวิตช์ดรอปลาวา (ค่าเริ่มต้น "เปิด" ตั้งแต่โหลด — r25 ตามคำสั่ง)
 local dipRunning  = false    -- กันรันซ้อนระหว่างรอบดรอป
@@ -3987,6 +3993,8 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
     local noReadyLogAt = 0     -- กัน spam ลอจ "เกมยังไม่พร้อม"
     local holdLogAt    = 0     -- กัน spam ลอจ "ถือไข่อยู่"
     local depositFailAt = 0    -- ครั้งล่าสุดที่ไปฝากแล้วแคนดี้ไม่ลด (กันค้างวน)
+    local yyYieldLogAt  = 0    -- กัน spam ลอจตอนหยุดรอ ☯️
+    local candyMidTrip  = false -- กำลังเดินทางไปเก็บชุดนี้อยู่ (จบรอบก่อนค่อยหยุดให้ ☯️)
     local diagLogAt     = 0    -- กัน spam ลอจ diag (โซน / ถือ / นับ)
     local flyLogAt      = 0    -- กัน spam ลอจตอนบิน (ลูปมันวิ่งทุก 0.5 วิ)
 
@@ -4268,6 +4276,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
     local function candyStep()
         local h = hrp()
         if not h then return end
+        if YY_MOVING then return end   -- ☯️ กำลังบินอยู่ -> รอเที่ยวถัดไป (กันแย่งตัวบิน)
 
         local canMove = (not isFarming) and (not isGrabbing)
         local car     = carriedCandy()
@@ -4342,9 +4351,21 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         end
 
         -- ── B) เก็บแคนดี้ ──────────────────────────────────
+        -- ⛔ r44 หยิน-หยางสำคัญสุด : A (ส่งบ้าน) ทำงานก่อนเสมอ · จบทริปปัจจุบันแล้วค่อยหยุดรอ ☯️
+        if YY_HAS_DROPS and not (car == 0 and candyMidTrip) then
+            if os.clock() - yyYieldLogAt > 15 then
+                yyYieldLogAt = os.clock()
+                logLine("[🍬] มีหยิน-หยางในแมพ -> "
+                    .. (car > 0 and "ส่งบ้านให้เสร็จก่อน" or "หยุดรอ")
+                    .. " แล้วให้ ☯️ เก็บก่อน (แคนดี้จะกลับมาเองเมื่อของหมด)")
+                setStatus("แคนดี้ : รอ ☯️ เก็บหยิน-หยาง", C.Amber)
+            end
+            return
+        end
         local spawn, pos, dist, val, isReady, readyCnt, notReady, total, maxV =
             nearestCandy(h.Position)
         if not spawn then
+            candyMidTrip = false   -- เป้าหาย (โดนเก็บ/หมดอายุ) -> ปิดเที่ยว ไม่ค้างธง
             if total == 0 and os.clock() - noReadyLogAt > 15 then
                 noReadyLogAt = os.clock()
                 logLine("[🍬] ไม่เจอแคนดี้ในแมพเลย (แท็ก HalloweenCandySpawn = 0)")
@@ -4365,6 +4386,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                 -- 🎈 ลอยเหนือ + งบเวลาต่อ hop ปรับตามระยะ (กันโดนตัดกลางทางตอนของไกล)
                 local cBudget = math.max(CFG.CANDY_FLY_TIME, dist / CFG.FLY_SPEED + 3)
                 flyTo(hover(pos), CFG.FLY_SPEED, cBudget)  -- ห้ามลดตัวลงไป
+                candyMidTrip = true    -- 🏁 เดินทางแล้ว -> จบรอบนี้ (เก็บ+ส่งบ้าน) ก่อนหยุดให้ ☯️
                 -- ถ้าทางไกลบินไม่ทัน บอกไว้ใน log (จะได้รู้ว่าต้องเพิ่ม CANDY_FLY_TIME)
                 local h2 = hrp()
                 if h2 then
@@ -4386,6 +4408,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
 
         local ok, code, extra = fireOn(spawn)
         candyLastAt = os.clock()
+        candyMidTrip = false   -- ยิงแล้ว -> จบเที่ยว (เที่ยวถัดไป A จะส่งบ้าน แล้วค่อยหยุดรอ ☯️)
         if ok then
             candyGot = candyGot + 1
             candyTokens = candyTokens + val
@@ -4416,11 +4439,11 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         end
         candyEnabled = not candyEnabled
         if candyEnabled then
-            if YY_STOP then YY_STOP("ระบบแคนดี้") end   -- ☯️ mutual exclusion
+            -- (r44) ไม่สั่ง ☯️ หยุดแล้ว — เปิดคู่กันได้ แคนดี้ยอมหยุดรอเองเมื่อมีหยิน-หยาง
             candyBtn.BackgroundColor3 = C.Green
             logLine("[🍬] เปิดเก็บแคนดี้ - สแกนทุก " .. CFG.CANDY_WAIT
                 .. " วิ · เก็บแต้มสูงสุดก่อน · ⭐ สแกนทั้งแมพ (ไม่จำกัดระยะ) · ถึงระยะ "
-                .. CFG.CANDY_RANGE .. " = ยิงเลย")
+                .. CFG.CANDY_RANGE .. " = ยิงเลย · ⭐ มีหยิน-หยาง = จบรอบให้เสร็จแล้วหยุดรอ ☯️ ก่อน")
             setStatus("แคนดี้ : เปิด", C.Amber)
         else
             candyBtn.BackgroundColor3 = C.Off
@@ -4445,7 +4468,9 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         while true do
             task.wait(CFG.CANDY_WAIT)
             if candyEnabled and os.clock() - candyLastAt >= CFG.CANDY_COOLDOWN then
+                CANDY_MOVING = true              -- 🤝 บอก ☯️ ว่ากำลังบิน/ส่งบ้านอยู่ (ห้ามแย่งตัว)
                 local ok, err = pcall(candyStep)
+                CANDY_MOVING = false
                 if not ok and os.clock() - errLogAt > 15 then
                     errLogAt = os.clock()
                     logLine("[!] 🍬 ระบบแคนดี้ error : " .. tostring(err))
@@ -4460,7 +4485,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         .. " · 🎃 แต้มครบ " .. eggPrice .. " = บินไปร้านแล้วซื้อ Halloween Egg ให้เลย")
 end)()
 -- ============================================================
--- ☯️ r43 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
+-- ☯️ r44 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
 --    · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --      (ObjectText "Yin Half"/"Yang Half" · Action "Collect"
 --       Hold 0.7 วิ · MaxActivationDistance 18.6 · ⭐ MaxHorizontalActivationDistance = 14)
@@ -4602,6 +4627,9 @@ end)()
             lastScanAt = os.clock()
         end
 
+        YY_HAS_DROPS = (#drops > 0)      -- 🤝 บอก 🍬 ว่ามีของอยู่ในแมพ (แคนดี้หยุดรอเมื่อ true)
+        if CANDY_MOVING then return end  -- 🍬 แคนดี้กำลังบิน/ส่งบ้าน -> รอให้จบรอบก่อน (ตามคำสั่ง)
+
         -- 📌 บันทึก Phase ของพิธีเวลาเปลี่ยน (กันเดาชื่อ phase ตอนเปิดถ้ำผิด)
         local okPh, ph = pcall(function()
             local r = ritualRoot()
@@ -4703,26 +4731,28 @@ end)()
         end
         yyEnabled = not yyEnabled
         if yyEnabled then
-            if CANDY_STOP then CANDY_STOP("ระบบหยิน-หยาง") end   -- ☯️ mutual exclusion
+            -- (r44) ไม่สั่ง 🍬 หยุดแล้ว — เปิดคู่กันได้ แคนดี้จะส่งบ้านก่อนแล้วหยุดรอพวกเรา
             yyBtn.BackgroundColor3 = C.Green
             lastScanAt = -999        -- เปิดปุ๊บ = สแกนแมพใหม่ทันที
             logLine("[☯️] เปิดฟาร์มหยิน-หยาง : เก็บ Yin/Yang Half (ยิงเมื่ออยู่เหนือของ ≤ "
                 .. CFG.YY_PICK_RANGE .. " studs · กดค้างตาม HoldDuration จริง · คูลดาวน์ "
-                .. CFG.YY_COOLDOWN .. " วิ) — เก็บอย่างเดียว ไม่วางที่แท่น")
+                .. CFG.YY_COOLDOWN .. " วิ) — เก็บอย่างเดียว ไม่วางที่แท่น · ⭐ สำคัญสุดเหนือ 🍬 (แคนดี้หยุดรอให้)")
             setStatus("หยิน-หยาง : เปิด", C.Amber)
         else
+            YY_HAS_DROPS = false     -- 🤝 ปลดธง -> แคนดี้กลับมาทำงานเองทันที
             yyBtn.BackgroundColor3 = C.Off
             logLine("[☯️] ปิดเก็บหยิน-หยาง (รอบนี้เก็บ " .. got .. " ชิ้น)")
             setStatus("หยิน-หยาง : ปิด")
         end
     end)
 
-    -- ให้ระบบอื่น "สั่งปิด" หยิน-หยาง ได้ (mutual exclusion — เลือกได้ทีละระบบ)
+    -- ให้ระบบอื่น "สั่งปิด" หยิน-หยาง ได้ (ตอนนี้มีแค่ฟาร์มไข่)
     YY_STOP = function(reason)
         if not yyEnabled then return end
         yyEnabled = false
+        YY_HAS_DROPS = false         -- 🤝 ปลดธง -> แคนดี้กลับมาทำงานเองทันที
         yyBtn.BackgroundColor3 = C.Off
-        logLine("[☯️] ปิดเก็บหยิน-หยาง -> เปิด " .. tostring(reason) .. " (สองระบบทำงานพร้อมกันไม่ได้)")
+        logLine("[☯️] ปิดเก็บหยิน-หยาง -> เปิด " .. tostring(reason) .. " (ฟาร์มไข่เลือกได้ทีละระบบ)")
         setStatus("หยิน-หยาง : ปิด", C.Amber)
     end
 
@@ -4840,7 +4870,9 @@ end)()
         while true do
             task.wait(CFG.YY_WAIT)
             if yyEnabled and os.clock() - lastFireAt >= CFG.YY_COOLDOWN then
+                YY_MOVING = true       -- 🤝 บอก 🍬 ว่ากำลังบินอยู่ (ห้ามแย่งตัว)
                 local ok, err = pcall(yyStep)
+                YY_MOVING = false
                 if not ok and os.clock() - errLogAt > 15 then
                     errLogAt = os.clock()
                     logLine("[!] ☯️ ระบบหยิน-หยาง error : " .. tostring(err))
@@ -4849,9 +4881,10 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r43 ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r44 ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
-        .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)")
+        .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
+        .. " · 🤝 เปิดคู่ 🍬 ได้ — แคนดี้จบรอบส่งบ้านก่อนแล้วหยุดรอให้เราเก็บก่อน")
 end)()
 -- ============================================================
