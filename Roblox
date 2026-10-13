@@ -32,7 +32,7 @@
 --    · 🌋 r25 : ดรอปลาวาเปิดเป็นค่าเริ่มต้นตอนโหลด (ปุ่ม 🌋 = สีเขียวตั้งแต่เปิดสคริปต์)
 --    · ⏱️ r26 : Anti-AFK แกะมาจาก 2.lua ตามคำสั่ง (คัดลอกดั้งเดิม ห้ามเขียนใหม่)
 --      — Idled → VirtualUser กดแทน · กันเด้งออกห้องตอนค้าง (timeout 20 นาที)
---    · ☯️ r47 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
+--    · ☯️ r49 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — ปุ่ม 2 ปุ่มท้ายแถบเดียวกับ 🍬
 --      · r43 : ไม่จำกัดระยะเดินทางแล้ว — ESP เห็นที่ไหน = บินไปเก็บที่นั่น (งบเวลาบินปรับตามระยะ)
 --      · r44 : เปิดคู่กับ 🍬 ได้ — หยิน-หยาง "สำคัญสุด" : แคนดี้จบรอบส่งบ้านก่อนแล้วหยุดรอ
 --              (ธง YY_HAS_DROPS/YY_MOVING/CANDY_MOVING กันสองระบบแย่งตัวบิน)
@@ -42,6 +42,44 @@
 --      · r46 : 🔔 เก็บครบทั้งคู่ (ค่าจริงจากเกม) = เล่นเสียงแจ้งเตือน + ป๊อป เหมือนแจ้งเตือนไข่
 --      · r47 : ✂️ ข้ามของซ้ำ — เกมเก็บซ้ำไม่ได้ ("You Already Have The ...")
 --              มี RitualYin/RitualYang อยู่แล้ว = ไม่บินไปเก็บ · ของที่ยังไม่มี = เก็บตามปกติ
+--      · r48 : ✅ ยิงแล้ว "ต้องยืนยันด้วยค่าจริง" ก่อนขึ้นว่าเก็บ — กันขึ้น "เก็บ" รัว ๆ ทั้งที่เกมปฏิเสธ
+--              (พิสูจน์จากล็อก: ยิงหม้อ 3 ครั้ง probe = "ไม่มีค่าอะไรเปลี่ยน" = ยิงลม) · ไม่เข้า = ถอย 8 วิ
+--      · r49 : 🚪 ปุ่ม "เปิดถ้ำ" (toggle · เริ่มปิด) — ถือ Yin+Yang ครบ = บินไปวางที่แท่นให้เอง
+--              (ยิง prompt แท่นด้วย fireproximityprompt — ไม่ต้องกด E/Y เอง) → แจ้งเตือน "ถ้ำเปิดแล้ว"
+--              · ไข่ "Headless Egg" (EggName ของพิธี · โอกาส 1/1000) โผล่ในถ้ำ = "เก็บก่อน" แคนดี้
+--                ขั้นบอบบาง : ลอยเหนือแบบแคนดี้ + ยิงเฉพาะฝั่ง client (สัมผัส/prompt/click + EggPickup(ชื่อ))
+--                → ยืนยันผลจริงทุกชั้น (เข้ามือ / หายจากแมพ) → ไม่เข้าค่อยใช้ระบบไข่ชุดพิสูจน์แล้ว
+--                → ล้มเหลว = แจ้งดัง ๆ ทุก 45 วิ (อายุ 600 วิ) ไม่หายเงียบ · ถือค้าง = ส่งเข้าแปลงเอง
+--                (จุดฝากแคนดี้รับเฉพาะ "แต้ม" CarriedCandy — ส่งไข่ที่นั่น = ไข่เน่า 600 วิ = เสียฟรี)
+--              · EGG_DATA เพิ่มแถว Headless Egg (สแกน/ESP จะเห็นไข่ในถ้ำ) · ธง CAVE_BUSY + CAVE_STOP
+--              · แก้ชนลิมิต local register 200 ของ Luau (เพิ่มธง CAVE_* แล้วล้น): popupStroke/popupTitle
+--                ไม่เคยถูกใช้ -> เรียก mk() เปล่าเหมือน L387 (คืน register โดยไม่เปลี่ยน UI)
+--      · r49d : แก้ 2 บั๊กจากทดสอบจริง 00:39-41 — (1) วางหยิน-หยางที่แท่นถูกแคนดี้ฉกตัวช่วงรอ retry
+--              -> CAVE_BUSY "ค้างข้ามรอบ" (ลูปไม่เช็ก not CAVE_BUSY) + แคนดี้หยุด "เด็ดขาด" ตอนถ้ำทำงาน
+--              · (2) หม้อ Ritual Candy Pot มี attr RitualDrop = ขึ้น ESP/ให้ ☯️ บินผี "เหมือนหยินหยาง"
+--                หลังเปิดถ้ำ -> กันชื่อ pot ออกจากสแกน ☯️ (หม้อ +50 แต้ม = 🍬 เก็บเอง — พิสูจน์ 00:40:54)
+--      · r49e : แก้ "ทิ้งข้างบ้านแล้วไม่เก็บ/ไม่วาง" จากล็อก 14:07-14:26 + banner "Egg Delivery
+--              Failed | CODE AT-9789" (3 บั๊ก) :
+--              · (1) flyTo clamp min>max เมื่อ speed<40 (HOME_SLOW=25) -> crash ทุกครั้งที่ใกล้บ้าน
+--                ≤40 studs -> grabAndReturn ตายก่อนขั้น "วางไข่" (คลัง堆积 10 -> 63 -> 290 ใบ)
+--              · (2) เช็คดรอปนับ char+Backpack ("คลัง") แต่ของจริงถือที่ player.Basket
+--                  (สูตรเดียวกับ DropEgg client ของเกม) -> ดรอปยังไงก็เช็คว่าล้มเหลว ->
+--                  "ข้ามขั้นหยิบกลับ" ตลอด 44/44 ครั้ง = ขั้นหยิบกลับไม่เคยรันสักครั้งเดียว
+--              · (3) ตัดยิง EggPlaced ทุกจุด (client จริงไม่เคยยิง · มีแต่ server->client)
+--                = ตัวการ banner "Egg Delivery Failed" · ดักข้อความเกม fail/deliver ลงล็อกด้วย
+--      · r49f : แก้ "วนลูป" 🍬+☯️ ฉกตัวกัน (ล็อก 00:16:52-00:22:23 + วิดีโอ 5.5 นาที :
+--              🍬 บินไปเก็บลูก "ยังไม่สุก" 1590 studs -> เกมปฏิเสธทุกเที่ยว · ☯️ บินไป
+--              หยิน/หยาง 1585 studs ไม่เคยถึง -> วนสองทางไม่จบ — พอ 🍬 หยุด (ครบ 50 ครั้ง)
+--              ☯️ เก็บ Yang Half ได้ใน 3 วินาที = พิสูจน์ตัวขวางคือ 🍬 ที่ยังบิน :
+--              · (1) เรียงเป้าแคนดี้ "พร้อมก่อน" (CandyPromptAvailable) -> แต้ม -> ใกล้สุด
+--              · (2) ไม่มีลูกไหนพร้อม (พร้อม 0/total) = ห้ามบิน -> รอเกมสุกเอง (แจ้งทุก 20 วิ)
+--              · (3) ประตูกั้น + YY_MOVING — ☯️ กำลังบินอยู่ = 🍬 หยุดเด็ดขาด
+--      · r49g : คืนการบินแคนดี้ — r49f ตีความ "CandyPromptAvailable" ผิด (จริง = "prompt อยู่ใน
+--              ระยะยิง" ไม่ใช่ "สุก/พร้อมเก็บ" · ไม่มีลูกในระยะ = อ่านไม่พร้อมเสมอ ลูกไม่ใช่ไข่
+--              ไม่มีคำว่าสุก) -> การ์ด r49f "ห้ามบินถ้า not isReady" = ห้ามบินถาวร "ต้องเดินไป
+--              มันถึงจะเก็บ" (ล็อก 01:02:48-01:04:09 "พร้อม 0/30" ทุก 20 วิ) -> ตัดการ์ดทิ้ง +
+--              คืนลำดับเลือกเป้าเดิม (แต้มสูงสุดก่อน) · เก็บ YY_MOVING gate ไว้ (ตัวกันสองระบบ
+--              ฉกตัวกันตอนบิน — ไม่พึ่งความหมาย attribute ฝั่งเกมอีก)
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -311,6 +349,8 @@ local EGG_DATA = {
     { "Cracked Egg",     "Rare",      "77040464450184",   "Cracked" },
     { "Brown Egg",       "Common",    "125046526765012",  "Brown" },
     { "White Egg",       "Common",    "112885858949987",  "White" },
+    -- 🚪 r49 : ไข่รางวัลของพิธีถ้ำ (HalloweenRitual.EggName) — ไม่มีแถวนี้ = scanAll/ESP มองไม่เห็น
+    { "Headless Egg",    "Secret",    "",                 "Headless" },
 }
 
 -- ---------- State ----------
@@ -323,6 +363,8 @@ local YY_STOP     = nil      -- ☯️ mutual exclusion : ฟาร์มไข�
 local YY_HAS_DROPS = false   -- ☯️ มี Yin/Yang Half ตกอยู่ในแมพ (แคนดี้หยุดรอเมื่อ true)
 local YY_MOVING    = false   -- ☯️ กำลังบินอยู่ (แคนดี้ต้องรอ)
 local CANDY_MOVING = false   -- 🍬 กำลังบิน/ส่งบ้านอยู่ (☯️ ต้องรอ)
+local CAVE_BUSY    = false   -- 🚪 ระบบถ้ำกำลังวางที่แท่น/เก็บไข่ (🍬/☯️ หยุดรอเมื่อ true)
+local CAVE_STOP    = nil     -- 🚪 mutual exclusion : ฟาร์มไข่สั่งปิดระบบถ้ำ
 local homeCFrame  = nil
 local dipEnabled  = true     -- 🌋 สวิตช์ดรอปลาวา (ค่าเริ่มต้น "เปิด" ตั้งแต่โหลด — r25 ตามคำสั่ง)
 local dipRunning  = false    -- กันรันซ้อนระหว่างรอบดรอป
@@ -371,10 +413,10 @@ local popupFrame = mk("Frame", {
     Visible = false, ZIndex = 50,
 }, sg)
 mk("UICorner", { CornerRadius = UDim.new(0, 12) }, popupFrame)
-local popupStroke = mk("UIStroke", { Color = C.Red, Thickness = 2 }, popupFrame)
+mk("UIStroke", { Color = C.Red, Thickness = 2 }, popupFrame)   -- ไม่ต้องเก็บลงตัวแปร = คืน register (ลิมิต 200 ของ Luau)
 local popupScale = mk("UIScale", { Scale = 1 }, popupFrame)
 
-local popupTitle = mk("TextLabel", {
+mk("TextLabel", {   -- (ไม่เก็บลงตัวแปร — Text ตั้งในนี้แล้ว ไม่มีที่ใช้ชื่อ variable)
     Size = UDim2.new(1, 0, 0, 35), BackgroundTransparency = 1,
     Text = "⚠️ ระบบแจ้งเตือน ⚠️", TextColor3 = C.Red,
     Font = Enum.Font.GothamBold, TextSize = 16, ZIndex = 51,
@@ -595,7 +637,8 @@ local actions4 = mk("Frame", {
 mk("UIListLayout", { Padding = UDim.new(0, 7), FillDirection = Enum.FillDirection.Horizontal }, actions4)
 
 local gfxBtn = mk("TextButton", {
-    Size = UDim2.new(1, -242, 1, 0), BackgroundColor3 = C.Off,
+    -- ⭐ หลบปุ่ม 40px ขวา : 🌋 👀 🍬 ☯️ ☯️ESP 🚪 = 6 ตัว + ช่อง 7px × 6 = 282+7 ≈ 289 (r49 เพิ่ม 🚪)
+    Size = UDim2.new(1, -289, 1, 0), BackgroundColor3 = C.Off,
     BorderSizePixel = 0, AutoButtonColor = true, Text = "🎮 ภาพกาก: ปิด",
     TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 11,
     TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1658,6 +1701,12 @@ local function noteRejection(msg)
         or string.find(low, "been in the volcano", 1, true) then
         dipRejection = s
     end
+    -- r49e: ดักข้อความเกมที่เกี่ยวกับการส่ง/วางไข่ (เช่น "Egg Delivery Failed | CODE ...")
+    --       เอาเหตุผลจริงจากเซิร์ฟมาลงล็อก — ไม่งั้นแค่เห็น banner แดงแล้วเดา
+    if string.find(low, "fail", 1, true) or string.find(low, "deliver", 1, true)
+        or string.find(low, "carri", 1, true) then
+        logLine("[📡] เกมส่งข้อความ : " .. s)
+    end
 end
 
 -- 🔌 เสียบตัวฟังครั้งเดียวตอนเปิดไฟล์ (ไม่ต่อซ้ำทุกรอบ)
@@ -2259,7 +2308,9 @@ local function flyTo(targetPos, speed, maxTime)
         local dt = math.clamp(now - lastStep, 0.005, 0.1)
         lastStep = now
         local spd = speed
-        if dist < 40 then spd = math.clamp(speed * (dist / 40), 40, speed) end
+        -- r49e: speed<40 (HOME_SLOW=25) = clamp min>max -> crash ทุกครั้งที่ใกล้ ≤40 studs
+        --       (บั๊กเดิมทำ grabAndReturn ตายก่อนขั้น "วางไข่" -> คลัง堆积 10 -> 63 -> 290 ใบ)
+        if dist < 40 and speed > 40 then spd = math.clamp(speed * (dist / 40), 40, speed) end
         local step = math.min(dist, spd * dt)
         h.CFrame = CFrame.new(h.Position + diff.Unit * step)
         h.AssemblyLinearVelocity = Vector3.zero
@@ -2325,7 +2376,7 @@ local function placeHeldEgg(reason)
     for try = 1, 3 do
         pcall(function()
             if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
+            -- r49e: ตัด EggPlaced (client จริงไม่เคยยิง -> "Egg Delivery Failed" ฝั่งเซิร์ฟ)
         end)
         task.wait(0.4)
         forceBareHands()
@@ -2686,20 +2737,34 @@ local function grabAndReturn(egg)
             .. (okTP and "" or " ล้มเหลว") .. " · ยืนห่างขอบ " .. CFG.HOME_GAP .. " studs")
         task.wait(CFG.HOME_PAUSE)      -- ⏸️ หยุดนิ่งตรงนี้ก่อน
 
-        -- 🧺 (ขั้นที่ 1) ดรอปไข่ข้างบ้าน — มีแค่ 2 ตัวนี้ ⛔ ห้ามเติม TeleportToPlot
-        local cntBefore = countOwnedEggs(eggName)     -- 🧮 char + Backpack
+        -- 🧺 (ขั้นที่ 1) ดรอปไข่ข้างบ้าน — ยิงแค่ BasketDrop ⛔ ห้ามเติม TeleportToPlot
+        --    r49e: ตัด EggPlaced — client จริงไม่เคยยิง (Dump_RemoteCalls = 0 ที่ / มีแต่
+        --          server->client ใน RemoteSpy_IN) = ตัวการ "Egg Delivery Failed | CODE ..."
+        --    r49e: "ถืออยู่" จริง = player.Basket (DropEgg client ของเกมใช้ #Basket:GetChildren())
+        --          countOwnedEggs นับ "คลัง" char+Backpack ซึ่งไม่ขยับตอนดรอป
+        --          -> เช็คล้มเหลวตลอด -> "ข้ามขั้นหยิบกลับ" 44/44 ครั้งในล็อก
+        local function carriedN()
+            local b = player:FindFirstChild("Basket")
+            if not b then return countOwnedEggs(eggName) end   -- กันเกมเปลี่ยนโครงสร้าง
+            local n, low = 0, string.lower(eggName)
+            for _, v in ipairs(b:GetChildren()) do
+                if string.find(string.lower(v.Name), low, 1, true) then n = n + 1 end
+            end
+            return n
+        end
+        local cntBefore = carriedN()
         pcall(function()
             if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
         end)
         -- ⏱️ รอจน "หลุดมือจริง" (ไม่ใช่รอเวลาคงที่) — เซิร์ฟอาจหน่วงกว่า 0.35 วิ
         local tDrop = os.clock()
-        while countOwnedEggs(eggName) > 0 and os.clock() - tDrop < 1.5 do task.wait(0.1) end
-        local cntAfter = countOwnedEggs(eggName)
+        while carriedN() > 0 and os.clock() - tDrop < 1.5 do task.wait(0.1) end
+        local cntAfter = carriedN()
+        local cntStock = countOwnedEggs(eggName)   -- 🧮 คลัง (char+Backpack) โชว์ในล็อกแยก
 
         if cntAfter >= cntBefore then
-            logLine("[!] ดรอปข้างบ้านไม่ติด -> ยังถือ " .. cntAfter
-                .. " ใบ -> ข้ามขั้นหยิบกลับ")
+            logLine("[!] ดรอปข้างบ้านไม่ติด -> Basket " .. cntBefore .. "->" .. cntAfter
+                .. " · คลัง " .. cntStock .. " ใบ -> ข้ามขั้นหยิบกลับ")
         else
             ----------------------------------------------------------
             -- 🎯 (ขั้นที่ 2a) หาตำแหน่งไข่ "จริง" หลังดรอป
@@ -2793,10 +2858,9 @@ local function grabAndReturn(egg)
                     end
                 end)
                 task.wait(0.3)
-                -- ⭐ ตรวจด้วย countOwnedEggs (นับทั้งมือ + Backpack)
-                --    heldEggName() มีแค่ในมือ → ถ้าเกมส่งเข้า Backpack จะ "มองไม่เห็น"
-                --    แล้วดันไปสรุปว่าหยิบไม่สำเร็จ (ทั้งที่จริงได้แล้ว)
-                if countOwnedEggs(eggName) > 0 then gotBack = true break end
+                -- ⭐ ตรวจด้วย carriedN() = player.Basket (ของจริงถืออยู่ตรงนี้)
+                --    countOwnedEggs เป็นแค่ "คลัง" -> หยิบสำเร็จก็มองไม่เห็น
+                if carriedN() > 0 then gotBack = true break end
             end
             logLine(gotBack and ("[OK] หยิบกลับ " .. eggName .. " แล้ว")
                 or ("[!] หยิบกลับ " .. eggName .. " ไม่สำเร็จ (ภายใน "
@@ -2822,10 +2886,9 @@ local function grabAndReturn(egg)
         logLine("[X] ไม่มีพิกัดบ้าน - ข้ามการกลับ")
     end
 
-    -- 🧺 วางไข่ — มีแค่ 2 ตัวนี้  ⛔ ห้ามเติม TeleportToPlot
+    -- 🧺 วางไข่ — ยิงแค่ BasketDrop (r49e: ตัด EggPlaced — client จริงไม่เคยยิง)
     pcall(function()
         if basketDropRemote then basketDropRemote:FireServer() end
-        if eggPlacedRemote then eggPlacedRemote:FireServer() end
     end)
     task.wait(0.1)
 
@@ -2837,7 +2900,6 @@ local function grabAndReturn(egg)
         logLine("[!] วางไม่ติด -> ยิงซ้ำ 1 รอบ")
         pcall(function()
             if basketDropRemote then basketDropRemote:FireServer() end
-            if eggPlacedRemote then eggPlacedRemote:FireServer() end
         end)
         task.wait(0.4)
         bare = forceBareHands()
@@ -3505,6 +3567,7 @@ startBtn.Activated:Connect(function()
     isFarming = true
     if CANDY_STOP then CANDY_STOP("ฟาร์มไข่") end   -- 🍬 mutual exclusion
     if YY_STOP then YY_STOP("ฟาร์มไข่") end         -- ☯️ mutual exclusion
+    if CAVE_STOP then CAVE_STOP("ฟาร์มไข่") end     -- 🚪 mutual exclusion
     onceNoTargetAt = 0
     startBtn.Text = "⏹ หยุดฟาร์ม"
     startBtn.BackgroundColor3 = C.Red
@@ -4253,6 +4316,8 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                     else notReady = notReady + 1 end
                     if d < nD then nSpawn, nPos, nD = o, p, d end
                     -- ⭐ เรียง : แต้มสูงสุด -> พร้อม -> ใกล้สุด
+                    --    (r49g: คืนลำดับเดิม — "CandyPromptAvailable" จริง = "prompt อยู่ในระยะยิง"
+                    --     ไม่ใช่ "สุก" → r49f เรียงพร้อมก่อน = กลายเป็นเลือกของใกล้ก่อน ผิดแบบเดิม)
                     local better
                     if v ~= bVal then better = v > bVal
                     elseif ready ~= bReady then better = ready
@@ -4364,13 +4429,25 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
 
         -- ── B) เก็บแคนดี้ ──────────────────────────────────
         -- ⛔ r44 หยิน-หยางสำคัญสุด : A (ส่งบ้าน) ทำงานก่อนเสมอ · จบทริปปัจจุบันแล้วค่อยหยุดรอ ☯️
-        if YY_HAS_DROPS and not (car == 0 and candyMidTrip) then
+        -- ⭐ r49 : CAVE_BUSY = ระบบถ้ำ (วางหยิน-หยาง/เก็บไข่ในถ้ำ) กำลังใช้ตัว -> หยุดรอเช่นกัน
+        -- ⛔ r49d : ถ้ำทำงาน = หยุด "เด็ดขาด" ไม่สน midTrip — กันแคนดี้ฉกตัวช่วงวางหยิน-หยางที่แท่น
+        -- ⛔ r49f : + YY_MOVING — ☯️ กำลังบิน/เก็บอยู่จริง = หยุดเด็ดขาด (ล็อก 00:16:52-00:22:23
+        --    สองระบบฉกตัวกันจนไม่ถึงเป้าทั้งคู่ วนลูป 5.5 นาที — พอ 🍬 หยุด (ครบ 50 ครั้ง)
+        --    ☯️ เก็บได้ทันทีใน 3 วินาที = พิสูจน์ว่าตัวขวางคือ 🍬 ที่ยังบินอยู่)
+        if YY_MOVING or ((YY_HAS_DROPS and not (car == 0 and candyMidTrip)) or CAVE_BUSY) then
             if os.clock() - yyYieldLogAt > 15 then
                 yyYieldLogAt = os.clock()
-                logLine("[🍬] มีหยิน-หยางในแมพ -> "
-                    .. (car > 0 and "ส่งบ้านให้เสร็จก่อน" or "หยุดรอ")
-                    .. " แล้วให้ ☯️ เก็บก่อน (แคนดี้จะกลับมาเองเมื่อของหมด)")
-                setStatus("แคนดี้ : รอ ☯️ เก็บหยิน-หยาง", C.Amber)
+                if CAVE_BUSY then
+                    logLine("[🍬] ระบบถ้ำกำลังทำงาน (วางหยิน-หยางที่แท่น/เก็บไข่ในถ้ำ) -> "
+                        .. (car > 0 and "ส่งบ้านให้เสร็จก่อน" or "หยุดรอ")
+                        .. " แล้วกลับมาเก็บแคนดี้เอง")
+                    setStatus("แคนดี้ : รอ ระบบถ้ำ 🚪", C.Amber)
+                else
+                    logLine("[🍬] มีหยิน-หยางในแมพ -> "
+                        .. (car > 0 and "ส่งบ้านให้เสร็จก่อน" or "หยุดรอ")
+                        .. " แล้วให้ ☯️ เก็บก่อน (แคนดี้จะกลับมาเองเมื่อของหมด)")
+                    setStatus("แคนดี้ : รอ ☯️ เก็บหยิน-หยาง", C.Amber)
+                end
             end
             return
         end
@@ -4387,6 +4464,9 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
 
         if dist > CFG.CANDY_RANGE then
             if CFG.CANDY_FLY and canMove then
+                -- (r49g: คืนการบินปกติ — r49f เค้า "ไม่บินถ้า not isReady" แต่ค่าจริงของ
+                --  CandyPromptAvailable = "prompt อยู่ในระยะ" ไม่ใช่ "สุก" -> ของไกลอ่านว่า
+                --  ไม่พร้อมเสมอ = ห้ามบินถาวร "ต้องเดินไปมันถึงจะเก็บ" บั๊กที่ user รายงาน)
                 if os.clock() - flyLogAt > 10 then
                     flyLogAt = os.clock()
                     logLine("[🍬] บินไปเก็บ " .. val .. " แต้ม "
@@ -4497,7 +4577,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         .. " · 🎃 แต้มครบ " .. eggPrice .. " = บินไปร้านแล้วซื้อ Halloween Egg ให้เลย")
 end)()
 -- ============================================================
--- ☯️ r47 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
+-- ☯️ r49 : ฟาร์ม "หยิน-หยาง" (Yin/Yang Half) + 👁️ ESP — เก็บอย่างเดียวตามคำสั่ง (ไม่วางที่แท่น ไม่แตะประตู)
 --    · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --      (ObjectText "Yin Half"/"Yang Half" · Action "Collect"
 --       Hold 0.7 วิ · MaxActivationDistance 18.6 · ⭐ MaxHorizontalActivationDistance = 14)
@@ -4599,7 +4679,10 @@ end)()
         local objs = (okL and type(list) == "table") and list or {}
         local d, seen = {}, {}
         for _, o in ipairs(objs) do                 -- แท็กจริงของแคนดี้ทุกลูกในแมพ
-            if isRitualDrop(o) and o.Parent then    -- เฉพาะตัวที่เป็นหยิน/หยาง (RitualDrop)
+            -- r49d : Ritual Candy Pot มี attr RitualDrop = หลงเข้า ESP/ให้ ☯️ บินผี "เหมือนหยินหยาง"
+            --         (ผู้ใช้ทักหลังเปิดถ้ำ) -> กันชื่อ pot ออก — หม้อ +50 แต้ม = 🍬 เก็บเอง (ล็อก 00:40:54)
+            if isRitualDrop(o) and o.Parent
+                and not string.find(string.lower(o.Name), "pot", 1, true) then
                 local pr, p = promptOf(o), posOf(o)
                 if pr and p then
                     seen[pr] = true
@@ -4683,10 +4766,29 @@ end)()
         end
     end
 
+    -- ✅ r48 : "เก็บเข้ามือจริง" = ค่าที่เกี่ยวกับการเก็บเท่านั้นเปลี่ยน
+    --          (กันสัญญาณรบกวนอย่าง IsRiding/SatchelOrder ที่เปลี่ยนเองระหว่างทาง)
+    local YY_GOT_KEYS = {
+        "Player.RitualYin", "Player.RitualYang",
+        "NoSave.CarriedCandy", "Player.CandyCarrySeconds",
+        "Player.CandyExpiresAt", "Player.CarriedCandyModel",
+    }
+    local function yyGotReal(before, after)
+        for _, k in ipairs(YY_GOT_KEYS) do
+            if before[k] ~= after[k] then return true end
+        end
+        return false
+    end
+
+    local yyRetryAt   = 0   -- ⏳ ห้ามยิงก่อนเวลานี้ (เกมปฏิเสธ -> ถอย ไม่ยิงรัวใส่ลม)
+    local yyFails     = 0   -- ยิงติดกันไม่เข้ากี่ครั้ง
+    local yyFailLogAt = 0   -- ⏱️ throttle ล็อก "เกมไม่รับ"
+
     -- หนึ่งรอบงาน : เก็บ Yin/Yang Half ที่ใกล้ที่สุด (ยังไม่มีของ = รอเฉย ๆ)
     local function yyStep()
         local h = hrp()
         if not h then return end
+        if CAVE_BUSY then return end  -- 🚪 ระบบถ้ำกำลังวางที่แท่น/เก็บไข่ -> หยุดรอ (ไม่แย่งตัว)
         local canMove = (not isFarming) and (not isGrabbing)
 
         if os.clock() - lastScanAt >= CFG.YY_RESCAN then
@@ -4718,7 +4820,7 @@ end)()
         elseif not yyAlerted then
             yyAlerted = true
             setStatus("หยิน-หยาง : เก็บครบ ✅", C.Green)
-            fireAlert("หยิน-หยาง", "☯️ เก็บ Yin/Yang ครบแล้ว!\n[Yin ✅ · Yang ✅]")
+            fireAlert("หยิน-หยาง", "☯️ เก็บ Yin/Yang ครบแล้ว!\n[Yin ✅ · Yang ✅] → กด 🚪 วางที่แท่นเปิดถ้ำ")
         end
 
         if CANDY_MOVING then return end  -- 🍬 แคนดี้กำลังบิน/ส่งบ้าน -> รอให้จบรอบก่อน (ตามคำสั่ง)
@@ -4795,9 +4897,23 @@ end)()
             -- ⭐ HoldDuration จริงของ prompt หยิน-หยาง = 0.7 วิ (ไม่ใช่ 0.2 เหมือนแคนดี้) → ยืมค่าจาก prompt เอง
             local hold = tonumber(best.prompt.HoldDuration) or 0.7
             local halfName = tostring(best.prompt.ObjectText or "หยิน/หยาง")  -- 🔬 ชื่อจริงจาก prompt (บอกว่าเก็บอันไหน)
+            if os.clock() < yyRetryAt then return end   -- ⏳ เพิ่งยิงไม่เข้า -> ถอย ไม่ยิงรัวใส่ลม
             local snap0 = yySnap()               -- 🔬 ถ่ายภาพ "ที่เก็บจริงของเกม" ก่อนยิง
             local ok, err = fireHeld(best.prompt, hold)
             if ok then
+                task.wait(hold + 0.8)            -- ⏳ รอเกมประมวลผลก่อนสรุปผล (เดิมขึ้น "เก็บ" ก่อนเกมตอบ)
+                -- ✅ r48 : ยืนยันด้วยค่าจริง — pcall ฝั่งเราสำเร็จเสมอ แต่ "เกมรับของ" ต้องวัดจากค่าที่เปลี่ยน
+                if not yyGotReal(snap0, yySnap()) then
+                    yyFails = yyFails + 1
+                    if os.clock() - yyFailLogAt > 10 then
+                        yyFailLogAt = os.clock()
+                        logLine("[☯️] ยิงแล้วเกมไม่รับ " .. halfName .. " (ติดต่อกัน " .. yyFails
+                            .. " ครั้ง) -> ของถูกเก็บ/คูลดาวน์/ยังไม่พร้อม ถอยรอ 8 วิ ไม่ยิงซ้ำรัว")
+                    end
+                    if yyFails >= 2 then yyRetryAt = os.clock() + 8 end
+                    return
+                end
+                yyFails = 0
                 got = got + 1
                 setStatus("☯️ เก็บหยิน-หยาง #" .. got, C.Green)
                 logLine("[☯️] เก็บ " .. halfName .. " #" .. got .. " ที่ " .. math.floor(bD)
@@ -4842,6 +4958,7 @@ end)()
             -- 🔔 ถ้าเปิดมา "ครบแล้ว" อยู่แล้ว = ห้ามแจ้งซ้ำ (รอรอบใหม่ที่ค่ากลับ false ก่อน)
             yyAlerted = (player:GetAttribute("RitualYin") == true
                 and player:GetAttribute("RitualYang") == true)
+            yyRetryAt, yyFails = 0, 0      -- ⏳ ล้างค้างยิงไม่เข้ารอบก่อน
             logLine("[☯️] เปิดฟาร์มหยิน-หยาง : เก็บ Yin/Yang Half (ยิงเมื่ออยู่เหนือของ ≤ "
                 .. CFG.YY_PICK_RANGE .. " studs · กดค้างตาม HoldDuration จริง · คูลดาวน์ "
                 .. CFG.YY_COOLDOWN .. " วิ) — เก็บอย่างเดียว ไม่วางที่แท่น · ⭐ สำคัญสุดเหนือ 🍬 (แคนดี้หยุดรอให้)")
@@ -4989,11 +5106,426 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r47 ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r49g ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
         .. " · 🤝 เปิดคู่ 🍬 ได้ — แคนดี้จบรอบส่งบ้านก่อนแล้วหยุดรอให้เราเก็บก่อน")
 end)()
 -- ============================================================
+-- 🚪 r49 : ระบบ "เปิดถ้ำ" (HeadlessRitual) — ปุ่มเปิด/ปิด · ⭐ เริ่ม "ปิด"
+--    ① ถือ Yin+Yang ครบแล้ว (ค่าจริง RitualYin/RitualYang) = บินไปแท่น → ยิง "Place Yin"/"Place Yang"
+--       (fireproximityprompt — ผู้เล่นไม่ต้องกด E/Y เอง ระบบยิงให้) → แจ้งเตือน "ถ้ำเปิดแล้ว"
+--    ② ไข่ "Headless Egg" โผล่ในถ้ำ (HalloweenRitual.EggName · โอกาส 1/1000 · อายุ 600 วิ)
+--       = "เก็บก่อน" แคนดี้ → ขั้นบอบบาง : ลอยเหนือแบบแคนดี้ + ยิงเฉพาะฝั่ง client (สัมผัส/prompt/click)
+--       → ยืนยันผลจริงทุกชั้น (เข้ามือจริง / หายจากแมพ) → ไม่เข้าค่อยใช้ระบบไข่ชุดพิสูจน์แล้ว
+--       → ล้มเหลว = แจ้งดังทุก 45 วิ ไม่หายเงียบ · ถือไข่ค้าง = ส่งเข้าแปลงให้เอง
+--       (จุดฝากแคนดี้รับเฉพาะตัวเลข CarriedCandy — ส่งไข่ที่นั่น = เน่า 600 วิ = เสียฟรี)
+--    • ระหว่างทำงาน = CAVE_BUSY true → 🍬/☯️ หยุดรอ (ไม่แย่งตัวบิน) · เริ่มฟาร์มไข่ = สั่งปิด (CAVE_STOP)
+-- ⚠️ ทั้งโมดูลอยู่ในฟังก์ชัน (ลิมิต local register 200 ตัวของ Luau)
+--    ขึ้นต้นด้วย ";" กัน Lua ตีความว่าเป็นการเรียกต่อจาก print(...) บรรทัดก่อนหน้า
+-- ============================================================
+;(function()
+    local caveOn       = false   -- 🚪 เปิด/ปิดระบบถ้ำ (ค่าเริ่มต้น "ปิด" — ต้องกดปุ่ม)
+    local caveBtn      = nil     -- ปุ่ม 🚪
+    local placedRound  = false   -- วางครบรอบนี้แล้ว (กันยิงซ้ำรอบเดิม)
+    local eggAlerted   = false   -- 🔔 แจ้ง "ไข่ในถ้ำ" แล้ว (รีเซ็ตเมื่อไข่หายไป)
+    local eggRetryAt   = 0       -- ⏳ เก็บไข่ไม่สำเร็จ -> ถอยก่อน ไม่ยิงรัว
+    local eggWarnAt    = 0       -- ⏱️ throttle แจ้งเตือนแดง "เก็บไข่ยังไม่เข้า" (ทุก 45 วิ)
+    local eggFirstSeen = 0       -- 🕐 เห็นไข่ครั้งแรกเมื่อไหร่ (บอกอายุในแจ้งเตือน / อายุจริง 600 วิ)
+    local placeRetryAt = 0       -- ⏳ วางที่แท่นไม่เข้า -> ถอย 8 วิ
+    local placeLogAt   = 0       -- ⏱️ throttle ลอจฝั่งวาง
+    local errLogAt     = 0       -- ⏱️ throttle ลอจ error
+    local CAVE_EGG     = "Headless Egg"   -- ชื่อไข่รางวัลของพิธี (config EggName)
 
+    local function hrp()
+        local ch = player.Character
+        return ch and ch:FindFirstChild("HumanoidRootPart")
+    end
+
+    local function ritualRoot()
+        return workspace:FindFirstChild("HeadlessRitual")
+    end
+
+    -- 🎈 ลอยเหนือแท่น — ห้ามลดตัวลงไป (ค่าเดียวกับ ☯️ กันสัตว์จมดิน)
+    local function hover(pos)
+        return pos + Vector3.new(0, CFG.YY_HOVER, 0)
+    end
+
+    -- 🏛️ prompt ฝั่งหนึ่งบนแท่น ("YinPlacement"/"YangPlacement") + ตัวแท่นเอง
+    local function altarPrompt(nm)
+        local r  = ritualRoot()
+        local al = r and r:FindFirstChild("Altar")
+        local ho = al and al:FindFirstChild(nm)
+        return (ho and ho:FindFirstChild("RitualPrompt")), al
+    end
+
+    -- ⏳ รอให้ 🍬/☯️ ที่กำลังบินอยู่จบทเที่ยวปัจจุบันก่อน
+    --    (CAVE_BUSY ที่ตั้งไว้แล้วจะกันไม่ให้เริ่มเที่ยวใหม่ — เที่ยวปัจจุบันจบเอง)
+    local function settleOthers()
+        local t0 = os.clock()
+        while (CANDY_MOVING or YY_MOVING) and os.clock() - t0 < 20 do
+            task.wait(0.25)
+        end
+        task.wait(0.5)
+    end
+
+    -- ⚡ ยิง prompt กดค้างตาม HoldDuration จริง (ชุดเดียวกับ ☯️ — fireproximityprompt เท่านั้น)
+    local function fireHeld(pr, hold)
+        pcall(function() if not pr.Enabled then pr.Enabled = true end end)
+        pcall(function() pr.RequiresLineOfSight = false end)
+        local ok, err = pcall(function() fireproximityprompt(pr, hold + 0.15) end)
+        return ok, err
+    end
+
+    -- 🥚 ตำแหน่งไข่ (Tool = Handle · Model = PrimaryPart/Pivot)
+    local function eggPos(e)
+        local p = e:FindFirstChild("Handle") or e:FindFirstChildWhichIsA("BasePart", true)
+        if p then return p.Position end
+        if e.PrimaryPart then return e.PrimaryPart.Position end
+        local ok, cf = pcall(function() return e:GetPivot() end)
+        return ok and cf.Position or nil
+    end
+
+    -- 🧤 ถือไข่ Headless อยู่ในมือไหม (string.lower ค้น "headless")
+    local function heldCaveEgg()
+        local held = heldEggName()
+        return (held and string.find(string.lower(held), "headless", 1, true)) and held or nil
+    end
+
+    -- 🔎 ยังมีไข่อยู่ในแมพไหม (สแกน "ใหม่" ทุกครั้ง — instance อาจถูกแทนที่ระหว่างทาง)
+    local function liveCaveEgg()
+        local okS, byName = pcall(scanAll)
+        local arr = okS and byName and byName[CAVE_EGG]
+        return arr and arr[1]
+    end
+
+    -- 🎯 ยิงวิธี "ฝั่ง client ล้วน" + คำขอดักจับของระบบไข่จริง — ชุดเดียวกับที่ฟาร์มไข่เดิมพิสูจน์แล้ว
+    --    (EggPickup:FireServer(ชื่อ) = ของจริงส่งชื่อ — Dump_RemoteCalls L624 ยืนยัน ไม่ใช่ remote ที่เราแต่งเอง)
+    local function gentleFire(egg)
+        local h = hrp()
+        local part = egg:FindFirstChild("Handle") or egg:FindFirstChildWhichIsA("BasePart", true)
+        if part and h then
+            pcall(function() firetouchinterest(h, part, 0) end)
+            pcall(function() firetouchinterest(h, part, 1) end)
+        end
+        local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if pr then
+            pcall(function() if not pr.Enabled then pr.Enabled = true end end)
+            pcall(function() fireproximityprompt(pr, (tonumber(pr.HoldDuration) or 0) + 0.15) end)
+        end
+        local cd = egg:FindFirstChildWhichIsA("ClickDetector", true)
+        if cd then pcall(function() fireclickdetector(cd) end) end
+        pcall(function()
+            if eggPickupRemote then eggPickupRemote:FireServer(egg.Name) end
+        end)
+    end
+
+    -- ✅ "ถืออยู่" -> ส่งเข้าแปลงทันที + ตรวจผล "จริง" อีกครั้ง · คืน true = วางสำเร็จ
+    --    (เกมบังคับ : ถือไข่ = บล็อกวาป/บล็อกเก็บอย่างอื่น → ต้องวางที่แปลง — จุดฝากแคนดี้รับ "แต้ม" ไม่รับไข่)
+    local function deliverHeld(tag)
+        local held = heldCaveEgg()
+        if not held then return false end
+        logLine("[🚪] " .. tag .. " : " .. held .. " เข้ามือแล้ว -> ส่งเข้าแปลง (บังคับของเกม)")
+        pcall(placeHeldEgg, tag)
+        if heldCaveEgg() then return false end        -- ตรวจซ้ำ ไม่เชื่อ pcall
+        setStatus("🥚 เก็บไข่ในถ้ำสำเร็จ", C.Green)
+        logLine("[🚪] ✅ ส่ง " .. held .. " เข้าแปลงเรียบร้อย")
+        fireAlert("🥚 เก็บไข่ในถ้ำสำเร็จ", held .. " → เข้าแปลงเรียบร้อย!\n(ของ 0.1% ปลอดภัยแล้ว)")
+        return true
+    end
+
+    -- ── เก็บไข่ในถ้ำ : ขั้นบอบบาง (ลอยเหนือแบบแคนดี้) → ยืนยันผลจริงทุกชั้น → ไม่เข้าค่อยใช้ท่าหนัก ──
+    local function caveEggTask(egg)
+        -- ขั้น 1 : บินไปลอยเหนือ (ไม่วาร์ปซ้ายขวา — ห้ามลดตัวลงไป ตามกติกาฟาร์ม)
+        local p0 = eggPos(egg)
+        local h = hrp()
+        if p0 and h then
+            local d = (h.Position - p0).Magnitude
+            if d > 40 then
+                setStatus("🥚 บินไปเก็บไข่ในถ้ำ", C.Amber)
+                logLine("[🚪] บินไปลอยเหนือ " .. CAVE_EGG .. " (ห่าง " .. math.floor(d) .. " studs)")
+                local budget = math.max(CFG.YY_FLY_TIME, d / CFG.FLY_SPEED + 3)
+                flyTo(hover(p0), CFG.FLY_SPEED, budget)
+            end
+        end
+        -- ยิงวิธีปลอดภัย 4 รอบ ๆ ละ 2 วิ + เช็กผลจริงหลังแต่ละรอบ
+        for i = 1, 4 do
+            local live = liveCaveEgg()
+            if not live then break end
+            egg = live
+            gentleFire(egg)
+            task.wait(2.0)
+            if heldCaveEgg() then return deliverHeld("ลอยเก็บ") end
+        end
+        if heldCaveEgg() then return deliverHeld("ลอยเก็บ") end
+        if not liveCaveEgg() then
+            -- ไข่หายจากแมพทั้งที่ไม่ได้ถือ = เกมรับไปเอง (GuaranteedHatch — ไม่ต้องส่งไหนเลย)
+            setStatus("🥚 เก็บไข่ในถ้ำสำเร็จ", C.Green)
+            logLine("[🚪] ✅ " .. CAVE_EGG .. " หายจากแมพหลังยิง -> เกมรับไปเองสำเร็จ")
+            fireAlert("🥚 เก็บไข่ในถ้ำสำเร็จ", CAVE_EGG .. " → เกมรับไปเอง สำเร็จ!")
+            return true
+        end
+        -- ขั้น 2 : ยังอยู่บนพื้น -> ระบบไข่ชุดพิสูจน์แล้ว (วาร์ปชิด + ยิง + กลับแปลง — ชุด 👑/ลูปฟาร์ม)
+        logLine("[🚪] ลอยเก็บ 4 ครั้งยังไม่เข้า -> ใช้ระบบไข่ชุดพิสูจน์แล้วต่อ (" .. CAVE_EGG .. ")")
+        pcall(goCollectEgg, CAVE_EGG, egg)
+        if heldCaveEgg() then return deliverHeld("ระบบไข่") end
+        if not liveCaveEgg() then
+            setStatus("🥚 เก็บไข่ในถ้ำสำเร็จ", C.Green)
+            logLine("[🚪] ✅ " .. CAVE_EGG .. " เก็บสำเร็จ (ระบบไข่จัดการเรียบร้อย)")
+            fireAlert("🥚 เก็บไข่ในถ้ำสำเร็จ", CAVE_EGG .. " → เก็บเข้าแปลงเรียบร้อย!\n(ของ 0.1% ปลอดภัยแล้ว)")
+            return true
+        end
+        return false                          -- ยังอยู่บนพื้น -> caveStep แจ้งเตือนแดง + ลองใหม่ 10 วิ
+    end
+
+    -- ── ① วาง Yin/Yang ที่แท่น (เรียกเมื่อถือครบสองฝั่งแล้ว) ─────────
+    local function placeTask()
+        local r  = ritualRoot()
+        local al = r and r:FindFirstChild("Altar")
+        if not al then
+            if os.clock() - placeLogAt > 15 then
+                placeLogAt = os.clock()
+                logLine("[🚪] หาแท่น HeadlessRitual.Altar ไม่เจอ (ยังไม่โหลด/พิธีปิด) -> รอรอบถัดไป")
+            end
+            return false
+        end
+        settleOthers()                       -- ให้แคนดี้/☯️ ที่บินอยู่จบเที่ยวก่อน (อยู่ใต้ธง CAVE_BUSY)
+
+        local h = hrp()
+        if not h then return false end
+
+        local didAny = false                 -- ยิงวางไปแล้วฝั่งใดฝั่งหนึ่ง
+        for _, nm in ipairs({ "YinPlacement", "YangPlacement" }) do
+            local side = (nm == "YinPlacement") and "Yin" or "Yang"
+            if player:GetAttribute("Ritual" .. side) == true then   -- ยังถือฝั่งนี้อยู่ = ต้องวาง
+                local pr, al2 = altarPrompt(nm)
+                if not (pr and al2) then
+                    logLine("[🚪] ถือ " .. side .. " แต่หา prompt แท่นไม่เจอ -> รอบถัดไป")
+                    return false
+                end
+                local range = tonumber(pr.MaxActivationDistance) or 27
+                local hold  = tonumber(pr.HoldDuration) or 0.7
+                -- ยังไม่ถึงระยะยิง = บินลอยเหนือแท่นก่อน แล้วรอรอบถัดไปค่อยยิง
+                local d3 = (al2.Position - h.Position).Magnitude
+                if d3 > range * 0.8 then
+                    setStatus("🚪 บินไปวาง " .. side, C.Amber)
+                    logLine("[🚪] บินไปวาง " .. side .. " ที่แท่น (ห่าง " .. math.floor(d3)
+                        .. " / ยิงต้อง ≤ " .. math.floor(range * 0.8) .. ")")
+                    local budget = math.max(CFG.YY_FLY_TIME, d3 / CFG.FLY_SPEED + 3)
+                    flyTo(hover(al2.Position), CFG.FLY_SPEED, budget)
+                    return false             -- ถึงแล้วค่อยยิงรอบถัดไป (กันยิงตอนยังไม่เข้าระยะ)
+                end
+
+                local phase0 = nil           -- Phase "ก่อนยิงฝั่งนี้" — เทียบเฉพาะฝั่งตัวเอง กันปลอมสำเร็จ
+                pcall(function() phase0 = r:GetAttribute("Phase") end)
+                setStatus("🚪 วาง " .. side .. " ที่แท่น", C.Amber)
+                logLine("[🚪] ยิงวาง " .. side .. " (กดค้าง " .. hold .. " วิ · ห่าง "
+                    .. math.floor(d3) .. " studs)")
+                local ok, err = fireHeld(pr, hold)
+                if not ok then
+                    logLine("[!] 🚪 ยิง prompt วาง " .. side .. " ไม่ได้ : " .. tostring(err))
+                    return false
+                end
+                task.wait(hold + 1.2)        -- รอเซิร์ฟประมวลผลก่อนสรุปผล (เหมือน r48)
+                local stillHeld = player:GetAttribute("Ritual" .. side) == true
+                local gone = (not pr.Parent) or (pr.Enabled == false)
+                local phase1 = nil
+                pcall(function() phase1 = r:GetAttribute("Phase") end)
+                if stillHeld and not gone and phase1 == phase0 then
+                    placeRetryAt = os.clock() + 8   -- เกมยังไม่รับ -> ถอย ไม่ยิงรัว (ชุดเดียวกับ r48)
+                    if os.clock() - placeLogAt > 10 then
+                        placeLogAt = os.clock()
+                        logLine("[🚪] ยิงแล้วเกมยังไม่วาง " .. side
+                            .. " (ค่า/Phase ไม่เปลี่ยน) -> ถอย 8 วิ แล้วลองใหม่")
+                    end
+                    return false
+                end
+                didAny = true
+                logLine("[🚪] วาง " .. side .. " สำเร็จ"
+                    .. (phase1 ~= phase0 and (" · Phase -> " .. tostring(phase1)) or " · ค่า/prompt เปลี่ยน"))
+            end
+        end
+
+        if not didAny then                   -- attrs ไม่ true ทั้งคู่แล้ว = วางไปก่อนหน้าแล้วรอบนี้
+            placedRound = true
+            return true
+        end
+        placedRound = true
+        setStatus("🚪 ถ้ำเปิดแล้ว", C.Green)
+        logLine("[🚪] วาง Yin/Yang ครบ -> ประตูถ้ำเปิด (รอบนี้จบ · รอไข่ Headless ในถ้ำ 1/1000)")
+        fireAlert("🚪 ถ้ำเปิดแล้ว", "วาง Yin/Yang ครบ → ประตูถ้ำเปิด!\nถ้ามีไข่ Headless ในถ้ำ = เก็บให้ก่อน")
+        return true
+    end
+
+    -- ── หนึ่งรอบงานของระบบถ้ำ (ลูปเรียกทุก 2 วิ เมื่อเปิดปุ่ม) ─────
+    local function caveStep()
+        -- 0) 🥚 ถือไข่ค้างจากระบบถ้ำ (รันสคริปต์ซ้ำ/ค้างข้ารอบ) → เคลียร์ก่อน
+        --    (ถือไข่ = บล็อกวาป/บล็อกเก็บอย่างอื่นทั้งหมด — ปล่อยไว้ = ระบบค้างทั้งเกม)
+        if heldCaveEgg() and not isFarming and not isGrabbing then
+            if os.clock() >= eggRetryAt then          -- เคยล้มเหลว -> ถอย 10 วิ ไม่รันซ้ำทุก tick
+                CAVE_BUSY = true
+                settleOthers()
+                local ok, res = pcall(deliverHeld, "เคลียร์ไข่ค้าง")
+                CAVE_BUSY = false
+                if not (ok and res) then
+                    eggRetryAt = os.clock() + 10
+                    if os.clock() - eggWarnAt > 45 then
+                        eggWarnAt = os.clock()
+                        logLine("[!] 🚪 ส่งไข่เข้าแปลงไม่สำเร็จ (ยังถือค้าง) -> ลองใหม่ทุก 10 วิ")
+                        setStatus("🥚 ถือไข่ค้าง — ส่งเข้าแปลงไม่ได้!", C.Red)
+                        fireAlert("🥚 ส่งไข่เข้าแปลงไม่สำเร็จ", "ยังถือ " .. tostring(heldCaveEgg())
+                            .. " ค้าง → ระบบจะลองใหม่ทุก 10 วิ\nถือไข่ไว้ = บล็อกวาป/เก็บอย่างอื่น — ห้ามกดเอง")
+                    end
+                end
+            end
+            return
+        end
+        -- ① 🥚 ไข่ในถ้ำ = "เก็บก่อน" แคนดี้ (คำสั่งผู้ใช้) — EGG_DATA มีแถว Headless Egg แล้ว = สแกนเห็น
+        local okS, byName = pcall(scanAll)
+        local arr = okS and byName and byName[CAVE_EGG]
+        local egg = arr and arr[1]
+        if egg then
+            if os.clock() < eggRetryAt then return end   -- เพิ่งเก็บไม่สำเร็จ -> ถอย ไม่รัว
+            if not eggAlerted then
+                eggAlerted = true
+                eggFirstSeen = os.clock()
+                setStatus("🥚 ไข่ในถ้ำ !", C.Amber)
+                logLine("[🚪] พบ " .. CAVE_EGG .. " ในถ้ำ -> เก็บก่อน (แคนดี้/☯️ หยุดรอให้)")
+                fireAlert("🥚 ไข่ในถ้ำ !", CAVE_EGG .. " โผล่ในถ้ำ → เก็บก่อนแคนดี้!")
+            end
+            if isFarming then
+                -- ฟาร์มไข่วิ่งอยู่ = ใส่หัวคิวให้ลูปเดิมไปเก็บ (ไม่แย่งตัว · ชุดพิสูจน์แล้ว)
+                pcall(goCollectEgg, CAVE_EGG, egg)
+                eggRetryAt = os.clock() + 15
+                return
+            end
+            if isGrabbing then eggRetryAt = os.clock() + 5; return end   -- เก็บใบอื่นอยู่ -> รอ
+            CAVE_BUSY = true
+            settleOthers()
+            -- ขั้นบอบบาง (ลอยเหนือ+ยิง client) -> ยืนยันผลจริง -> ไม่เข้าค่อยใช้ระบบไข่ชุดพิสูจน์แล้ว
+            local ok, res = pcall(caveEggTask, egg)
+            CAVE_BUSY = false
+            if not ok then
+                eggRetryAt = os.clock() + 10
+                if os.clock() - errLogAt > 15 then
+                    errLogAt = os.clock()
+                    logLine("[!] 🚪 เก็บไข่ในถ้ำ error : " .. tostring(res))
+                end
+            elseif res ~= true then
+                eggRetryAt = os.clock() + 10   -- ยังอยู่บนพื้น -> ถอย 10 วิ แล้วลองใหม่
+                if os.clock() - eggWarnAt > 45 then
+                    eggWarnAt = os.clock()
+                    local age = math.floor(os.clock() - eggFirstSeen)
+                    logLine("[!] 🚪 เก็บ " .. CAVE_EGG .. " ยังไม่สำเร็จ (ลองมา " .. age
+                        .. " วิ / อายุ 600 วิ) -> ลองใหม่ทุก 10 วิ + แจ้งเตือน")
+                    setStatus("🥚 เก็บไข่ในถ้ำยังไม่สำเร็จ!", C.Red)
+                    fireAlert("🥚 เก็บไข่ในถ้ำยังไม่สำเร็จ!", CAVE_EGG .. " เก็บยังไม่เข้า (ลอง "
+                        .. age .. "/600 วิ)\nระบบจะลองใหม่ทุก 10 วิ — ดูล็อก [🚪] ถ้าเกิน 5-6 นาที รีบเก็บเอง!")
+                end
+            end
+            return
+        end
+        eggAlerted = false                     -- ไข่หายไปแล้ว -> รอบหน้าแจ้งใหม่ได้ (eggFirstSeen ตั้งใหม่เอง)
+
+        -- ② 🚪 ถือครบสองฝั่ง = ไปวางที่แท่นเปิดถ้ำ
+        local yin  = player:GetAttribute("RitualYin")  == true
+        local yang = player:GetAttribute("RitualYang") == true
+        if not (yin and yang) then
+            placedRound = false                -- ยังไม่ครบ/รอบใหม่ -> รอบหน้าวางได้
+            CAVE_BUSY = false                  -- r49d: ไม่มีงานถ้ำค้าง -> ปล่อยแคนดี้/☯️
+            return
+        end
+        if placedRound then
+            CAVE_BUSY = false                  -- r49d: รอบนี้วางแล้ว -> ปล่อย (งานไข่ตั้งเองเมื่อเจอไข่)
+            return
+        end
+        if os.clock() < placeRetryAt then
+            return                             -- (CAVE_BUSY ยังค้าง true -> แคนดี้หยุดรอ ไม่ฉกตัว)
+        end
+        if isFarming or isGrabbing then        -- ครึ่งที่ถืออยู่ไม่มีอายุ -> รอฟาร์มไข่จบได้
+            if os.clock() - placeLogAt > 30 then
+                placeLogAt = os.clock()
+                logLine("[🚪] ถือ Yin+Yang ครบแต่ฟาร์มไข่/เก็บไข่กำลังทำงาน -> รอวางที่แท่นทีหลัง")
+            end
+            return
+        end
+        CAVE_BUSY = true                       -- 🤝 r49d: "ค้างข้ามรอบ" จนกว่าจะวางเสร็จ/รอบจบ
+        local ok, err = pcall(placeTask)       --    (placeTask มี settleOthers — รอเที่ยวแคนดี้จบก่อนบิน)
+        if not ok then
+            CAVE_BUSY = false                  -- error = ปล่อยไม่ให้ค้างคา (รอบหน้า retry ใหม่)
+            if os.clock() - errLogAt > 15 then
+                errLogAt = os.clock()
+                logLine("[!] 🚪 วางที่แท่น error : " .. tostring(err))
+            end
+        end
+    end
+
+    -- ── ปุ่ม 🚪 ในแถบปุ่ม (ถัดจาก ☯️ ESP — LayoutOrder 7) ──
+    caveBtn = mk("TextButton", {
+        Size = UDim2.new(0, 40, 1, 0), BackgroundColor3 = C.Off,
+        BorderSizePixel = 0, AutoButtonColor = true, Text = "🚪",
+        TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 17,
+        LayoutOrder = 7,
+    }, actions4)
+    mk("UICorner", { CornerRadius = UDim.new(0, 10) }, caveBtn)
+
+    caveBtn.Activated:Connect(function()
+        -- 🚪 mutual exclusion : เปิดพร้อมฟาร์มไข่ไม่ได้ (ฟาร์มไข่ยึดตัวบินเอง)
+        if (not caveOn) and isFarming then
+            logLine("[🚪] ฟาร์มไข่กำลังทำงานอยู่ -> กด ⏹ หยุดฟาร์มก่อน แล้วค่อยเปิด 🚪")
+            setStatus("ถ้ำ : ต้องหยุดฟาร์มไข่ก่อน", C.Amber)
+            return
+        end
+        caveOn = not caveOn
+        if caveOn then
+            caveBtn.BackgroundColor3 = C.Green
+            placedRound = false               -- เปิดใหม่ = ประเมินรอบปัจจุบันใหม่
+            placeRetryAt, eggRetryAt = 0, 0
+            local yin  = player:GetAttribute("RitualYin")  == true
+            local yang = player:GetAttribute("RitualYang") == true
+            logLine("[🚪] เปิดระบบถ้ำ : "
+                .. (yin and yang and "ถือ Yin+Yang ครบแล้ว -> บินไปวางที่แท่นเลย"
+                    or "รอเก็บ Yin/Yang ครบก่อน -> แล้ววางที่แท่นให้อัตโนมัติ")
+                .. " · ไข่ Headless Egg โผล่ในถ้ำ = เก็บก่อนแคนดี้ (แคนดี้หยุดรอแล้วกลับมาเอง)")
+            setStatus("ถ้ำ : เปิด", C.Amber)
+        else
+            caveBtn.BackgroundColor3 = C.Off
+            CAVE_BUSY = false                  -- r49d: ปิดแล้วปล่อยทันที (ค้างไว้ = แคนดี้/☯️ หยุดถาวร)
+            logLine("[🚪] ปิดระบบถ้ำ")
+            setStatus("ถ้ำ : ปิด")
+        end
+    end)
+
+    -- ให้ระบบอื่น "สั่งปิด" ระบบถ้ำ ได้ (ตอนนี้มีแค่ฟาร์มไข่ — ชุดเดียวกับ CANDY_STOP/YY_STOP)
+    CAVE_STOP = function(reason)
+        if not caveOn then return end
+        caveOn = false
+        CAVE_BUSY = false                      -- r49d: สั่งปิดโดยฟาร์มไข่ -> ปล่อยทันที ไม่ค้างคา
+        caveBtn.BackgroundColor3 = C.Off
+        logLine("[🚪] ปิดระบบถ้ำ -> เปิด " .. tostring(reason)
+            .. " (เปิดใหม่ = ระบบตรวจรอบใหม่ให้เอง)")
+        setStatus("ถ้ำ : ปิด", C.Amber)
+    end
+
+    -- ── ลูปหลัก : ทุก 2 วิ (ค้างไว้ถ้ากำลังใช้ตัว — CAVE_BUSY กันงานซ้อน) ──
+    task.spawn(function()
+        while true do
+            task.wait(2.0)
+            if not sg.Parent then break end          -- ปิดหน้าต่างแล้ว = หยุด
+            if caveOn then                     -- r49d: เอา not CAVE_BUSY ออก (CAVE_BUSY ค้างข้ามรอบได้ —
+                local ok, err = pcall(caveStep) --    ลูปนี้ thread เดียว pcall กันซ้ำอยู่แล้ว ไม่ต้องเช็ก)
+                if not ok and os.clock() - errLogAt > 15 then
+                    errLogAt = os.clock()
+                    logLine("[!] 🚪 ระบบถ้ำ error : " .. tostring(err))
+                end
+            end
+        end
+    end)
+
+    logLine("[OK] 🚪 r49g ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
+        .. " · ถือ Yin+Yang ครบ = บินวางที่แท่นอัตโนมัติ (fireproximityprompt — ไม่ต้องกด E/Y เอง)"
+        .. " · ไข่ Headless Egg ในถ้ำ = เก็บก่อนแคนดี้ (ลอยเหนือยิง client ก่อน → ไม่เข้าค่อยใช้ระบบไข่)"
+        .. " · เก็บไม่เข้า = แจ้งดังทุก 45 วิ ไม่หายเงียบ")
+end)()
+-- ============================================================
