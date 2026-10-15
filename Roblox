@@ -49,8 +49,8 @@
 --              · ไข่ "Headless Egg" (EggName ของพิธี · โอกาส 1/1000) โผล่ในถ้ำ = "เก็บก่อน" แคนดี้
 --                ขั้นบอบบาง : ลอยเหนือแบบแคนดี้ + ยิงเฉพาะฝั่ง client (สัมผัส/prompt/click + EggPickup(ชื่อ))
 --                → ยืนยันผลจริงทุกชั้น (เข้ามือ / หายจากแมพ) → ไม่เข้าค่อยใช้ระบบไข่ชุดพิสูจน์แล้ว
---                → ล้มเหลว = แจ้งดัง ๆ ทุก 45 วิ (อายุ 600 วิ) ไม่หายเงียบ · ถือค้าง = ส่งเข้าแปลงเอง
---                (จุดฝากแคนดี้รับเฉพาะ "แต้ม" CarriedCandy — ส่งไข่ที่นั่น = ไข่เน่า 600 วิ = เสียฟรี)
+--                → ล้มเหลว = แจ้งดัง ๆ ทุก 45 วิ (อายุ 600 วิ) ไม่หายเงียบ · ถือค้าง = ส่งให้เอง
+--                (r49p : Headless = ลองจุดฝากเดียวกับแคนดี้ก่อน — ไม่รับ = สำรองเข้าแปลง ของไม่หาย)
 --              · EGG_DATA เพิ่มแถว Headless Egg (สแกน/ESP จะเห็นไข่ในถ้ำ) · ธง CAVE_BUSY + CAVE_STOP
 --              · แก้ชนลิมิต local register 200 ของ Luau (เพิ่มธง CAVE_* แล้วล้น): popupStroke/popupTitle
 --                ไม่เคยถูกใช้ -> เรียก mk() เปล่าเหมือน L387 (คืน register โดยไม่เปลี่ยน UI)
@@ -149,6 +149,14 @@
 --                เปิดประตู = ทักผิดจังหวะ 15/10 10:51:26 ที่ user งง) -> พ้น Cooldown ค่อยแจ้ง
 --              · ยกเลิก "ไม่ใส่ phase gate" ของ r49n เฉพาะกรณี Cooldown (ตามคำสั่งผู้ใช้ —
 --                รอบ Closed/AwaitingHalf ยังวางได้ตามเดิม ไม่กันพลาดเปล่า)
+--      · r49p : Headless Egg (ไข่ในถ้ำ 1/1000) = "ส่งที่จุดเดียวกับแคนดี้" (ผู้ใช้สั่ง 15/10) :
+--              · placeHeldEgg (จุดเดียวของทุกเส้นทาง — ถ้ำ 🚪 + ฟาร์มไข่ ผ่านที่นี่) :
+--                ถือ Headless -> หาแท็กจริง HalloweenCandyDeposit (ใกล้สุด) -> วาร์ป hover
+--                แบบแคนดี้ -> ตรวจจริง -> ลดตัวทีเดียว -> ตรวจจริง อีกที
+--              · ⛑️ จุดฝากยังไม่รับ (ยังถืออยู่) = ใช้ทางเดิม "ส่งเข้าแปลง" ต่อ — ของ 0.1%
+--                ห้ามหายเงียบ · ล็อกบอกทุกขั้น (สำเร็จที่จุดฝาก / ตกมาทางแปลง / หาแท็กไม่เจอ)
+--              · แทนคำเตือนเก่า "ส่งไข่ที่จุดแคนดี้ = เน่า 600 วิ" -> "ลองก่อน + สำรองแปลง"
+--                (ผู้ใช้สั่งเอง · fallback แปลงชุดพิสูจน์แล้วคุ้มกันเสมอ)
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -2445,6 +2453,68 @@ local function placeHeldEgg(reason)
     if not held then return true end
 
     logLine("[!] ยังถือ " .. held .. " ค้าง -> " .. reason)
+
+    -- ⭐ r49p : Headless Egg = "ส่งที่จุดเดียวกับแคนดี้" (ผู้ใช้สั่ง 15/10) — แท็กจริงของเกม
+    --    HalloweenCandyDeposit · ชุดเข้าจุดแบบแคนดี้ (hover -> ตรวจจริง -> ลดตัวทีเดียว -> ตรวจจริง)
+    --    ⛑️ จุดฝากยังไม่รับ (ยังถืออยู่) = ตกมาทางเดิมด้านล่าง "ส่งเข้าแปลง" — ของ 0.1% ห้ามหาย
+    if string.find(string.lower(held), "headless", 1, true) then
+        local ch = player.Character
+        local h = ch and ch:FindFirstChild("HumanoidRootPart")
+        local dp, dpD
+        if h then
+            pcall(function()
+                local list = game:GetService("CollectionService"):GetTagged("HalloweenCandyDeposit")
+                for _, o in ipairs(list) do
+                    local p = nil
+                    if o:IsA("BasePart") then p = o.Position
+                    elseif o:IsA("Model") then
+                        if o.PrimaryPart then p = o.PrimaryPart.Position
+                        else
+                            local okP, cf = pcall(function() return o:GetPivot() end)
+                            if okP and typeof(cf) == "CFrame" then p = cf.Position end
+                        end
+                    end
+                    if p then
+                        local d = (p - h.Position).Magnitude
+                        if not dpD or d < dpD then dp, dpD = p, d end
+                    end
+                end
+            end)
+        end
+        if dp then
+            setStatus("ส่ง " .. held .. " ที่จุดฝาก", C.Amber)
+            logLine("[!] r49p : " .. held .. " -> ส่งที่จุดฝากเดียวกับแคนดี้ (ห่าง "
+                .. math.floor(dpD) .. " studs)")
+            local top = 0                     -- สูง mount (คำนวณแบบเดียวกับ mountHeight ของแคนดี้)
+            pcall(function()
+                for _, q in ipairs(ch:GetChildren()) do
+                    if q:IsA("Model") and q:FindFirstChildOfClass("Humanoid") then
+                        local okB, _, sz = pcall(function() return q:GetBoundingBox() end)
+                        if okB and typeof(sz) == "Vector3" and sz.Y > top then top = sz.Y end
+                    end
+                end
+            end)
+            pcall(function()                   -- ขั้น 1 : hover แบบจุดฝากแคนดี้ (ลอยเหนือ ห้ามจมดิน)
+                teleportTo(CFrame.new(dp + Vector3.new(0, CFG.CANDY_HOVER + top * 0.5, 0)))
+            end)
+            task.wait(1.2)
+            if not heldEggName() then
+                logLine("[OK] ✅ ส่ง " .. held .. " ที่จุดฝากเดียวกับแคนดี้แล้ว")
+                return true
+            end
+            pcall(function()                   -- ขั้น 2 : ลดตัวทีเดียวแบบจุดฝากแคนดี้ (กันจมดินติด)
+                teleportTo(CFrame.new(dp + Vector3.new(0, 6 + top * 0.5, 0)))
+            end)
+            task.wait(1.2)
+            if not heldEggName() then
+                logLine("[OK] ✅ ส่ง " .. held .. " ที่จุดฝากเดียวกับแคนดี้แล้ว (ลดตัวเข้าจุด)")
+                return true
+            end
+            logLine("[!] จุดฝากแคนดี้ยังไม่รับ " .. held .. " -> ใช้ทางเดิม ส่งเข้าแปลง (ของ 0.1% ห้ามหาย)")
+        else
+            logLine("[!] หาแท็ก HalloweenCandyDeposit ไม่เจอ -> ใช้ทางเดิม ส่งเข้าแปลง")
+        end
+    end
 
     -- 🏠 ต้องมีพิกัดแปลงก่อน — ไม่งั้นวางมั่วแล้วไม่ติด
     if not homeCFrame then
@@ -5283,7 +5353,7 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r49o ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r49p ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
@@ -5296,8 +5366,8 @@ end)()
 --    ② ไข่ "Headless Egg" โผล่ในถ้ำ (HalloweenRitual.EggName · โอกาส 1/1000 · อายุ 600 วิ)
 --       = "เก็บก่อน" แคนดี้ → ขั้นบอบบาง : ลอยเหนือแบบแคนดี้ + ยิงเฉพาะฝั่ง client (สัมผัส/prompt/click)
 --       → ยืนยันผลจริงทุกชั้น (เข้ามือจริง / หายจากแมพ) → ไม่เข้าค่อยใช้ระบบไข่ชุดพิสูจน์แล้ว
---       → ล้มเหลว = แจ้งดังทุก 45 วิ ไม่หายเงียบ · ถือไข่ค้าง = ส่งเข้าแปลงให้เอง
---       (จุดฝากแคนดี้รับเฉพาะตัวเลข CarriedCandy — ส่งไข่ที่นั่น = เน่า 600 วิ = เสียฟรี)
+--       → ล้มเหลว = แจ้งดังทุก 45 วิ ไม่หายเงียบ · ถือไข่ค้าง = ส่งให้เอง
+--       (r49p ผู้ใช้สั่ง : Headless = ลองจุดฝากเดียวกับแคนดี้ก่อน -> ไม่รับ = สำรองเข้าแปลง)
 --    • ระหว่างทำงาน = CAVE_BUSY true → 🍬/☯️ หยุดรอ (ไม่แย่งตัวบิน) · เริ่มฟาร์มไข่ = สั่งปิด (CAVE_STOP)
 -- ⚠️ ทั้งโมดูลอยู่ในฟังก์ชัน (ลิมิต local register 200 ตัวของ Luau)
 --    ขึ้นต้นด้วย ";" กัน Lua ตีความว่าเป็นการเรียกต่อจาก print(...) บรรทัดก่อนหน้า
@@ -5400,17 +5470,17 @@ end)()
         end)
     end
 
-    -- ✅ "ถืออยู่" -> ส่งเข้าแปลงทันที + ตรวจผล "จริง" อีกครั้ง · คืน true = วางสำเร็จ
-    --    (เกมบังคับ : ถือไข่ = บล็อกวาป/บล็อกเก็บอย่างอื่น → ต้องวางที่แปลง — จุดฝากแคนดี้รับ "แต้ม" ไม่รับไข่)
+    -- ✅ "ถืออยู่" -> placeHeldEgg (r49p : Headless = จุดฝากเดียวกับแคนดี้ก่อน -> ไม่รับ = แปลง)
+    --    ตรวจผล "จริง" อีกครั้ง · คืน true = วางสำเร็จ
     local function deliverHeld(tag)
         local held = heldCaveEgg()
         if not held then return false end
-        logLine("[🚪] " .. tag .. " : " .. held .. " เข้ามือแล้ว -> ส่งเข้าแปลง (บังคับของเกม)")
+        logLine("[🚪] " .. tag .. " : " .. held .. " เข้ามือแล้ว -> ส่งต่อ (r49p ลองจุดฝากก่อน -> แปลง)")
         pcall(placeHeldEgg, tag)
         if heldCaveEgg() then return false end        -- ตรวจซ้ำ ไม่เชื่อ pcall
         setStatus("🥚 เก็บไข่ในถ้ำสำเร็จ", C.Green)
-        logLine("[🚪] ✅ ส่ง " .. held .. " เข้าแปลงเรียบร้อย")
-        fireAlert("🥚 เก็บไข่ในถ้ำสำเร็จ", held .. " → เข้าแปลงเรียบร้อย!\n(ของ 0.1% ปลอดภัยแล้ว)")
+        logLine("[🚪] ✅ ส่ง " .. held .. " สำเร็จ (ทางไหนดูบรรทัด [OK] ด้านบน)")
+        fireAlert("🥚 เก็บไข่ในถ้ำสำเร็จ", held .. " → ส่งสำเร็จ!\n(ของ 0.1% ปลอดภัยแล้ว)")
         return true
     end
 
@@ -5740,7 +5810,7 @@ end)()
         end
     end)
 
-    logLine("[OK] 🚪 r49o ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
+    logLine("[OK] 🚪 r49p ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
         .. " · ถือ Yin+Yang ครบ = บินวางที่แท่นอัตโนมัติ (fireproximityprompt — ไม่ต้องกด E/Y เอง)"
         .. " · ไข่ Headless Egg ในถ้ำ = เก็บก่อนแคนดี้ (ลอยเหนือยิง client ก่อน → ไม่เข้าค่อยใช้ระบบไข่)"
         .. " · เก็บไม่เข้า = แจ้งดังทุก 45 วิ ไม่หายเงียบ")
