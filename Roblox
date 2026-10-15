@@ -157,6 +157,23 @@
 --                ห้ามหายเงียบ · ล็อกบอกทุกขั้น (สำเร็จที่จุดฝาก / ตกมาทางแปลง / หาแท็กไม่เจอ)
 --              · แทนคำเตือนเก่า "ส่งไข่ที่จุดแคนดี้ = เน่า 600 วิ" -> "ลองก่อน + สำรองแปลง"
 --                (ผู้ใช้สั่งเอง · fallback แปลงชุดพิสูจน์แล้วคุ้มกันเสมอ)
+--      · r49q : 🍬 เร่งฟาร์มแคนดี้ (ผู้ใช้ 16/10 : "ฟาร์มช้ามากมาก · เก็บ 1 เสียเวลา") :
+--              · CANDY_DEPOSIT_MIN 1 -> 25 แต้ม : เก็บสะสมต่อเนื่อง max-first (ทุก ~2.15 วิ
+--                = คูลดาวน์เกม) ค่อยไปฝากเที่ยวเดียว — เดิมเก็บปุ๊บวาร์ปฝากปั๊บ =
+--                วาป 2 ทาง + รอ 1.2 วิ x2 ต่อชิ้น ได้แต้มเท่ากันแต่ช้า ~2 เท่า
+--              · ⛑️ กันเน่าค้าง (แคนดี้เน่า = อดทุกชิ้นที่ถือ) : ใกล้เน่า (<= 6 วิ)
+--                หรือไม่มีของให้เก็บแล้ว = ฝากทันที · สแกนเป้าย้ายขึ้นก่อน A ใช้ร่วม
+--                กับ B ไม่สแกนซ้ำสองรอบ
+--              · เป้า "แต้มสูงสุดก่อน" อยู่แล้ว (r49g) — ของ 10-15 แต้มถูกเก็บก่อนเสมอ
+--              · ไม่แตะ teleportTo/ฝั่งไข่ — เที่ยวไข่ 0.1% ไม่เปลี่ยนพฤติกรรม
+--      · r49s : ⚡ "ขาไป" วาปตรงทีเดียว ไม่ซอยช่วง (ผู้ใช้สั่ง 16/10 : "ขาไปเก็บแคนดี้/
+--              ไข่ วาปเลย ไม่ต้องวาปทีละนิด · ขากลับลอจิกเดิม") — teleportTo เพิ่ม
+--              direct : มือเปล่าไปเก็บของ = กระโดดครั้งเดียวถึงเป้า · ขากลับ/ส่งของ
+--              (ถือแคนดี้-ไข่ : ฝากแคนดี้ · กลับแปลง · Headless · ลาวา) ยังซอยช่วง
+--              ≤500 studs เดิม กันดีดกลับ (หลักฐานป้ายแดง/ดีด = เที่ยว "ถือของ" ทั้งนั้น)
+--              · 4 จุดเปลี่ยน : ไปเก็บไข่ (goCollectEgg · retry 3 รอบอยู่แล้ว) · หยิบไข่ตก
+--                (ห่าง ≤18 เดิม) · ขาไปเก็บแคนดี้ · ขาไปเก็บหยิน-หยาง — ทุกจุดมีตรวจ
+--                "วาร์ปแล้วยังห่าง" หลัง落地 -> โดนดีดจริง = วาปซ้ำเองรอบถัด ไม่ค้าง
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -218,8 +235,12 @@ local CFG = {
     CANDY_COOLDOWN   = 2.15,  -- เกมคูลดาวน์ 2 วิ → เว้น +0.15 กันชน
     CANDY_FLY        = true,  -- บินไปหาเมื่ออยู่นอกระยะ (สลับกับฟาร์มไข่ — เลือกได้ทีละระบบ)
     CANDY_DEPOSIT    = true,  -- ถือครบ → บินไปจุดฝาก (HalloweenCandyDeposit)
-    CANDY_DEPOSIT_MIN = 1,    -- ⭐ เก็บ 1 ครั้ง = ไปฝากเลย (เลขลอย ๆ บนหัว "ไม่ใช่จำนวนชิ้น"
-                              --    แต่คือค่า token — Halloween_Candy.lua L424 -> Amounts[Id])
+    CANDY_DEPOSIT_MIN = 25,   -- ⭐ r49q : เก็บสะสมจนถึง 25 แต้มค่อยไปฝากเที่ยวเดียว
+                              --    (ผู้ใช้ 16/10 : ฝากทีละชิ้น = วาป 2 ทาง/ชิ้น เสียเวลา —
+                              --     ได้แต้มเท่ากันแต่ช้า ~2 เท่า · max-first ต่อเนื่องทุก
+                              --     ~2.15 วิ = คูลดาวน์เกม) · เลขลอย ๆ บนหัว = ค่า token
+                              --    ไม่ใช่จำนวนชิ้น (Halloween_Candy.lua L424 -> Amounts[Id])
+                              --    + ⛑️ ใกล้เน่า (CANDY_SPOIL_SAFE) / ไม่มีของให้เก็บ = ฝากทันที
     CANDY_SPOIL_SAFE  = 6,    -- เหลือเวลาน้อยกว่านี้ → เลิกเก็บแล้วรีบไปฝากก่อนเน่า
     --    (r35) ตัด CANDY_MAX_TRAVEL ออก — ไม่จำกัดระยะแล้ว สแกนทั้งแมพ เจอที่ไหนบินไปที่นั่น
     CANDY_FLY_TIME    = 15,   -- ⭐ เวลาบินสูงสุดต่อเที่ยว (วิ) — 8 วิ ไม่พอสำหรับทางไกล
@@ -1744,12 +1765,17 @@ end
 --              ≤1666 = 0 ป้าย · 1926 = ทุกครั้ง · ≥2000 = 74% · ของไม่หาย — ฝากสำเร็จทุกครั้ง)
 --           -> เที่ยว ≥1600 = คั่นช่วงละ 0.5 วิ (≈1000 studs/วิ = ความเร็วตอน "บิน" ที่หลักฐาน
 --              ยืนยันไม่เคยขึ้นป้าย) · เที่ยวสั้นกว่านั้นยัง 0.05 วิ เหมือนเดิม (เร็ว = 0 ป้าย 81 เที่ยว)
-local function teleportTo(targetCF)
+--    r49s : direct = true → "ขาไป" (มือเปล่า ไปเก็บของ) วาปตรงทีเดียว ไม่ซอยช่วง
+--           (ผู้ใช้สั่ง 16/10 : ขาไปเก็บแคนดี้/ไข่ วาปเลย ไม่ต้องวาปทีละนิด)
+--           · ขากลับ/ส่งของ (ถือแคนดี้-ไข่) ยังซอยช่วงเดิม — หลักฐานดีดกลับ/ป้ายแดง
+--             ทั้งหมดเป็นเที่ยว "ถือของ" (r49j/r49k วัดจากขากลับ) · ขาไปโดนดีดจริง =
+--             แต่ละจุดเรียกมีตรวจ "วาร์ปแล้วยังห่าง" หลัง落地อยู่แล้ว -> วาปซ้ำเองรอบถัด
+local function teleportTo(targetCF, direct)
     local h = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not h then return false end
     local startP = h.Position
     local d = (targetCF.Position - startP).Magnitude
-    if d > 500 then
+    if (not direct) and d > 500 then
         local n = math.ceil(d / 500)          -- จำนวนช่วง (ช่วงละไม่เกิน 500 studs)
         local hopWait = (d >= 1600) and 0.5 or 0.05   -- r49k: ทางไกลคั่นช้า = รวมไม่เกินหน้าต่างเซิร์ฟ
         for i = 1, n - 1 do
@@ -2644,7 +2670,7 @@ local function grabAndReturn(egg)
             local base = interactPart.Position
             local dTo = math.floor((base - h0.Position).Magnitude)
             local sp = base + stands[1]
-            teleportTo(CFrame.lookAt(sp, Vector3.new(base.X, sp.Y, base.Z)))
+            teleportTo(CFrame.lookAt(sp, Vector3.new(base.X, sp.Y, base.Z)), true)  -- r49s: ขาไปมือเปล่า = วาปตรง
             task.wait(0.25)
 
             -- ✅ ตรวจระยะ "จริง" หลังวาร์ป — ถ้าห่างเกิน = ยังไม่ถึง → วาร์ปซ้ำ (สูงสุด 3 รอบ)
@@ -2986,7 +3012,7 @@ local function grabAndReturn(egg)
                 if gap > 18 then
                     logLine("[→] ไข่ตกที่ห่าง " .. math.floor(gap)
                         .. " studs -> เข้าใกล้ก่อนหยิบ (ไกล = เซิร์ฟปฏิเสธ)")
-                    teleportTo(CFrame.new(ePos + Vector3.new(0, 4, 10)))
+                    teleportTo(CFrame.new(ePos + Vector3.new(0, 4, 10)), true)  -- r49s: ขาไปหยิบ = วาปตรง
                     task.wait(0.35)
                 else
                     logLine("[→] ไข่อยู่ห่าง " .. math.floor(gap) .. " studs (ใกล้พอแล้ว)")
@@ -4539,13 +4565,19 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
             return
         end
 
-        -- ── A) เก็บได้ปุ๊บ → ไปฝากปั๊บ ────────────────────────
-        --    ⭐ ค่า MIN = 1 เพราะ "เลขลอย ๆ" บนหัวคือค่า token ไม่ใช่จำนวนชิ้น
-        --       + แคนดี้เน่าเอง (CandyExpiresAt) → ค้างนาน = อดทุกชิ้น
+        -- ── A) เก็บสะสมจนถึง MIN → ไปฝากเที่ยวเดียว ─────────────
+        --    ⭐ r49q : เดิม MIN=1 = เก็บปุ๊บวาร์ปฝากปั๊บ (วาป 2 ทาง + รอ 1.2 วิ x2
+        --       ต่อชิ้น) ผู้ใช้ : "ฟาร์มช้ามาก · เก็บ 1 เสียเวลา" -> เก็บต่อเนื่อง max-first
+        --       จนถึง 25 แต้มค่อยฝาก · ⛑️ แคนดี้เน่าเอง (CandyExpiresAt) = อดทุกชิ้นที่ถือ
+        --       -> ใกล้เน่า (<= 6 วิ) หรือไม่มีของให้เก็บแล้ว = ฝากทันที คุมด้วย nearSpoil
         local sl = spoilLeft()
         local nearSpoil = (sl ~= nil and sl <= CFG.CANDY_SPOIL_SAFE)
-        if CFG.CANDY_DEPOSIT and car >= CFG.CANDY_DEPOSIT_MIN and canMove
-            and os.clock() - depositFailAt > 30 then
+        -- สแกนเป้า "ขึ้นมาหน้า A" — A (ฝาก) กับ B (เก็บ) ใช้ผลร่วมกัน ไม่สแกนซ้ำสองรอบ
+        local spawn, pos, dist, val, isReady, readyCnt, notReady, total, maxV =
+            nearestCandy(h.Position)
+        if CFG.CANDY_DEPOSIT and car >= 1 and canMove
+            and os.clock() - depositFailAt > 30
+            and (car >= CFG.CANDY_DEPOSIT_MIN or nearSpoil or spawn == nil) then
             local dp, dd = nearestOf(tagged(DEPOSIT_TAG), h.Position)
             if dp then
                 setStatus("🍬 ไปฝากแคนดี้ " .. car .. " แต้ม", C.Amber)
@@ -4611,8 +4643,6 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
             end
             return
         end
-        local spawn, pos, dist, val, isReady, readyCnt, notReady, total, maxV =
-            nearestCandy(h.Position)
         if not spawn then
             candyMidTrip = false   -- เป้าหาย (โดนเก็บ/หมดอายุ) -> ปิดเที่ยว ไม่ค้างธง
             if total == 0 and os.clock() - noReadyLogAt > 15 then
@@ -4638,7 +4668,9 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                 -- 🎈 r49i : ขาไป = "วาร์ป" ทันที (ผู้ใช้สั่ง ขาไปวาปเลย) — จุดหมาย hover
                 --    เดิม flyTo 1000 stud/วิ (ทางไกล 1500 studs ≈ 1.5 วิ) -> วาร์ป = ~0.1 วิ
                 local stopClip = startNoClip()
-                pcall(function() teleportTo(CFrame.new(hover(pos))) end)  -- ห้ามลดตัวลงไป
+                -- 🎈 r49i/r49s : ขาไป = "วาร์ปตรงทีเดียว" ไม่ซอยช่วง (มือเปล่า = ไม่มีของให้ดีดกลับเสีย)
+                --    · ห้ามลดตัวลงไป (สัตว์จมดินติด) · noclip กันจุดกลางติดในหิน
+                pcall(function() teleportTo(CFrame.new(hover(pos)), true) end)
                 stopClip()
                 candyMidTrip = true    -- 🏁 เดินทางแล้ว -> จบรอบนี้ (เก็บ+ส่งบ้าน) ก่อนหยุดให้ ☯️
                 -- วาร์ปแล้วยังห่าง = ผิดปกติ (โดนดีดกลับ/ตำแหน่งเป้าเพี้ยน) -> บอกใน log
@@ -4733,8 +4765,10 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         end
     end)
 
-    logLine("[OK] 🍬 r35 ระบบเก็บแคนดี้พร้อม (ปุ่ม 🍬 ท้ายแถบ) - เริ่ม" ..
-        (candyEnabled and "เปิด" or "ปิด") .. " · ⭐ เก็บแต้มสูงสุดก่อน · ⭐ สแกนทั้งแมพ (ไม่จำกัดระยะ) · ⭐ ลอยเหนือ " .. CFG.CANDY_HOVER
+    logLine("[OK] 🍬 r49r ระบบเก็บแคนดี้พร้อม (ปุ่ม 🍬 ท้ายแถบ) - เริ่ม" ..
+        (candyEnabled and "เปิด" or "ปิด") .. " · ⭐ เก็บแต้มสูงสุดก่อน · ⭐ เก็บสะสม "
+        .. CFG.CANDY_DEPOSIT_MIN .. " แต้มค่อยฝาก (ใกล้เน่า/ไม่มีของให้เก็บ = ฝากทันที)"
+        .. " · ⭐ สแกนทั้งแมพ (ไม่จำกัดระยะ) · ⭐ ลอยเหนือ " .. CFG.CANDY_HOVER
         .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
         .. " · 🎃 แต้มครบ " .. eggPrice .. " = บินไปร้านแล้วซื้อ Halloween Egg ให้เลย")
 end)()
@@ -5082,10 +5116,10 @@ end)()
                         logLine("[☯️] วาปไปเก็บหยิน/หยาง ห่าง " .. math.floor(bD)
                             .. " studs (เก็บได้ " .. canGet .. " ชิ้น)")
                     end
-                    -- 🎈 r49i : ขาไป = "วาร์ป" ทันที (ผู้ใช้สั่ง ขาไปวาปเลย) — จุดหมาย hover
-                    --    เดิม flyTo 1000 stud/วิ -> วาร์ป ~0.1 วิ · noclip กันจุดกลางติดในหิน
+                    -- 🎈 r49i/r49l/r49s : ขาไป = "วาร์ปตรงทีเดียว" ไม่ซอยช่วง (มือเปล่า = ไม่มีของให้ดีดกลับเสีย) ·
+                    --    จุดหมาย hover · noclip กันจุดกลางติดในหิน · โดนดีดจริง = วัดซ้ำหลัง落地 + ยิงรอบนี้ (r49l)
                     local stopClip = startNoClip()
-                    pcall(function() teleportTo(CFrame.new(hover(best.pos))) end)
+                    pcall(function() teleportTo(CFrame.new(hover(best.pos)), true) end)
                     stopClip()
                     -- ⭐ r49l : "ยิงทันทีรอบนี้" — เดิม return รอรอบถัด (0.5 วิ) ค่อยวัด/ยิง แต่บน
                     --    ping สูง (เพื่อน : คลาวด์โฟน 5G) เซิร์ฟดีดกลับ "ก่อนรอบถัดมา" -> วัดเกิน
@@ -5353,7 +5387,7 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r49p ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r49r ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
@@ -5810,7 +5844,7 @@ end)()
         end
     end)
 
-    logLine("[OK] 🚪 r49p ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
+    logLine("[OK] 🚪 r49r ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
         .. " · ถือ Yin+Yang ครบ = บินวางที่แท่นอัตโนมัติ (fireproximityprompt — ไม่ต้องกด E/Y เอง)"
         .. " · ไข่ Headless Egg ในถ้ำ = เก็บก่อนแคนดี้ (ลอยเหนือยิง client ก่อน → ไม่เข้าค่อยใช้ระบบไข่)"
         .. " · เก็บไม่เข้า = แจ้งดังทุก 45 วิ ไม่หายเงียบ")
