@@ -126,6 +126,29 @@
 --                = ป้ายแดงเฉพาะเที่ยว "ถือไข่" เท่านั้น · ขาไปมือเปล่าไม่แตะเดิมทุกอย่าง
 --                (วาร์ปตรง +落地ตรวจ×3 + ยิง0.08วิ) · ป้าย = ข้อความเซิร์ฟ บันทึกแล้วว่า
 --                "ของไม่หาย" (r49k วิเคราะห์ 156 เที่ยว = ฝากสำเร็จทุกครั้ง)
+--      · r49n : 🚪 แก้ "ถือ Yin+Yang ครบแต่ไม่ยอมไปเปิดประตู" + "กดปิดกลางเที่ยวแล้วระบบรวน"
+--              (ล็อก 15/10 : 10:09:33 วางเสร็จ -> 10:18:39 ค่อยบินใหม่ = เงียบ 9 นาที · 10:18:42
+--               กดปิดแต่เที่ยวยังค้าง) — ตัวการ 2 ตัว :
+--              · placedRound ("รอบนี้วางแล้ว") รีเซ็ตเฉพาะตอนลูป 2 วิเห็น attrs เป็น false (~2 วิ)
+--                — คู่ใหม่เข้าตัวทันทีหลังวาง = ลูปพลาดจังหวะ -> ธงค้างถาวร ไม่วางอีกเลย
+--                -> watchdog : ถือครบค้าง >60 วิ หลังวางรอบก่อน = ประเมินรอบใหม่ + ล็อกบอกเหตุ
+--              · กดปิด/CAVE_STOP กลางเที่ยว = เดิมปล่อย CAVE_BUSY ทันที (🍬/☯️ แย่งตัวกลางบิน
+--                = กระเด้ง "รวน") + placeTask ยังบิน/ยิงต่อ -> ใหม่ : caveStepActive กันไว้ —
+--                ธงปล่อยตอนเที่ยวจบ · เช็ก caveOn หลัง flyTo + ก่อนยิง = หยุดจริง
+--              · ไม่ใส่ phase gate : ล็อกพิสูจน์แล้วว่าเกมรับวางตอน phase ยังไม่เปลี่ยนได้
+--                (10:09:26 / 10:20:02 สำเร็จ "ค่า/prompt เปลี่ยน") — ใส่แล้วกันพลาดเปล่า
+--      · r49o : ☯️/🚪 gate Phase "Cooldown" (รอบเปิดประตูไปแล้ว = "ใช้ไปแล้ว") — ผู้ใช้แจ้ง :
+--              ล็อก 15/10 : 10:47:32 เปิดประตู -> Phase ค้าง Cooldown ~5 นาที แต่ 10:51:00
+--              Yin/Yang ดันเกิดใหม่ 2 ชิ้น -> ☯️ เก็บเข้าตัว + 🚪 วาร์ปไปวาง ทั้งที่รอบใช้ไป
+--              แล้ว (วางปลอม "ค่า/prompt เปลี่ยน" ไม่เปลี่ยน Phase) -> "มันเลยพัง" (ผู้ใช้)
+--              · ☯️ : Phase == Cooldown = ห้ามเก็บ/ห้ามวาร์ป (ล็อกบอกทุก 20 วิ) · YY_HAS_DROPS
+--                = false ตอน Cooldown (แคนดี้ทำงานต่อ · เก็บไข่ในถ้ำช่วงประตูเปิดไม่โดนกัน)
+--              · 🚪 : Phase == Cooldown = ไม่วาร์ปไปวาง (ล็อกบอกทุก 30 วิ) — เฝ้าตาเฉย ๆ
+--                รอพิธีเปลี่ยน Phase (Closed -> AwaitingHalf) = รอบใหม่จริงค่อยลุย
+--              · แจ้งเตือน "ครบแล้ว → กด 🚪" ไม่ยิงตอน Cooldown (attrs ยังไม่ล้าง ~3 วิหลัง
+--                เปิดประตู = ทักผิดจังหวะ 15/10 10:51:26 ที่ user งง) -> พ้น Cooldown ค่อยแจ้ง
+--              · ยกเลิก "ไม่ใส่ phase gate" ของ r49n เฉพาะกรณี Cooldown (ตามคำสั่งผู้ใช้ —
+--                รอบ Closed/AwaitingHalf ยังวางได้ตามเดิม ไม่กันพลาดเปล่า)
 --      · ปุ่ม ☯️ = เก็บอย่างเดียว · ปุ่ม ☯️ (ขวา) = ESP ป้าย Yin/Yang Half + ระยะ (แยกโฟลเดอร์จาก ESP ไข่)
 --      · ของจริง = HeadlessRitual.Runtime.Yin/Yang.Root.RitualPrompt
 --        (ObjectText "Yin Half"/"Yang Half" · Action "Collect" · Hold 0.7 วิ
@@ -4853,6 +4876,7 @@ end)()
     local yyFails     = 0   -- ยิงติดกันไม่เข้ากี่ครั้ง
     local yyFailLogAt = 0   -- ⏱️ throttle ล็อก "เกมไม่รับ"
     local yyWarpLogAt = 0   -- ⏱️ r49l : throttle ล็อก "วาร์ปแล้วยังห่าง" ฝั่ง ☯️
+    local yyCdLogAt   = 0   -- ⏱️ r49o : throttle ล็อก "พิธียัง Cooldown ไม่เก็บ" (รอบเปิดไปแล้ว)
     local yySuspect   = {}  -- ⭐ r49h : ครึ่งที่ "ยืนยันซ้ำไม่ผ่าน" (ค่า true แต่ของยังตกอยู่
                             --    = ยังไม่เข้าตัวจริง) -> ห้ามมองว่า "มีแล้ว" กันระบบปลดธง/
                             --    วาปไปฟาร์มแคนดี้ทั้งที่ยังไม่ได้ของจริง (อาการที่ user แจ้ง)
@@ -4863,6 +4887,18 @@ end)()
         if not h then return end
         if CAVE_BUSY then return end  -- 🚪 ระบบถ้ำกำลังวางที่แท่น/เก็บไข่ -> หยุดรอ (ไม่แย่งตัว)
         local canMove = (not isFarming) and (not isGrabbing)
+
+        -- 📌 บันทึก Phase ของพิธีเวลาเปลี่ยน (กันเดาชื่อ phase ตอนเปิดถ้ำผิด)
+        --    ⭐ r49o : อ่านไว้ใช้ทั้งรอบ — "Cooldown" = ประตูเปิดรอบก่อนไปแล้ว (รอบ "ใช้ไปแล้ว")
+        local okPh, ph = pcall(function()
+            local r = ritualRoot()
+            return r and r:GetAttribute("Phase")
+        end)
+        if okPh and ph ~= nil and ph ~= lastPhase then
+            lastPhase = ph
+            logLine("[☯️] พิธีเปลี่ยน Phase เป็น : " .. tostring(ph))
+        end
+        local cdPhase = (okPh and ph == "Cooldown") or false
 
         if os.clock() - lastScanAt >= CFG.YY_RESCAN then
             scanAll()
@@ -4894,11 +4930,18 @@ end)()
         -- 🧹 r49h : ชนิดไหน "หายจากแมพแล้ว" (เก็บจริง/หมดอายุ/คนอื่นเก็บ) = ล้างบัญชีสงสัยกันค้าง
         if not sawYang then yySuspect.Yang = nil end
         if not sawYin  then yySuspect.Yin  = nil end
-        YY_HAS_DROPS = (canGet > 0)      -- 🤝 บอก 🍬 : เฉพาะของที่เก็บได้จริง (มีแต่ของซ้ำ = ปล่อยแคนดี้ทำงาน)
+        -- 🤝 บอก 🍬 : เฉพาะของที่เก็บได้จริง (มีแต่ของซ้ำ = ปล่อยแคนดี้ทำงาน)
+        --    ⭐ r49o : ตอน Phase Cooldown = ไม่เก็บอยู่แล้ว -> ปล่อยแคนดี้ทำงานต่อ (เก็บแต้มสูงสุดก่อน)
+        YY_HAS_DROPS = (canGet > 0) and (not cdPhase)
 
         -- 🔔 r46 : เก็บครบทั้งคู่ (ค่าจริงจากเกม RitualYin/RitualYang) = เล่นเสียงแจ้งเตือนครั้งเดียว
+        --    ⭐ r49o : ตอน Phase Cooldown ห้ามทัก "กด 🚪" — ประตูเปิดไปแล้ว attrs ยังไม่ล้าง ~3 วิ
+        --    (ล็อก 15/10 : 10:51:23 เปิดประตู -> 10:51:26 ยิง "ครบแล้ว กด 🚪" ทั้งที่ไม่ต้องกด
+        --     = อาการ user งง "แจ้งเตือนครบแต่ไม่ยอมไปเปิด") -> พ้น Cooldown แล้วยังถือครบค่อยแจ้ง
         if not (yinOk and yangOk) then
             yyAlerted = false           -- ยังไม่ครบ/ค่าถูกรีเซ็ต -> รอบหน้าแจ้งได้อีก
+        elseif cdPhase then
+            yyAlerted = false           -- รอบเปิดไปแล้ว (Cooldown) -> รอรอบใหม่ค่อยแจ้ง
         elseif not yyAlerted then
             yyAlerted = true
             setStatus("หยิน-หยาง : เก็บครบ ✅", C.Green)
@@ -4906,16 +4949,7 @@ end)()
         end
 
         if CANDY_MOVING then return end  -- 🍬 แคนดี้กำลังบิน/ส่งบ้าน -> รอให้จบรอบก่อน (ตามคำสั่ง)
-
-        -- 📌 บันทึก Phase ของพิธีเวลาเปลี่ยน (กันเดาชื่อ phase ตอนเปิดถ้ำผิด)
-        local okPh, ph = pcall(function()
-            local r = ritualRoot()
-            return r and r:GetAttribute("Phase")
-        end)
-        if okPh and ph ~= nil and ph ~= lastPhase then
-            lastPhase = ph
-            logLine("[☯️] พิธีเปลี่ยน Phase เป็น : " .. tostring(ph))
-        end
+        -- (Phase อ่านไว้ข้างบนสุดแล้ว r49o — เหตุผล : gate "Cooldown" กันเก็บ/วางรอบใช้ไปแล้ว)
 
         -- ⛔ กติกาเกม : ถือไข่อยู่ในตะกร้า = เก็บ/วางไม่ได้เลย (IsLocalCarrying)
         local held = heldEggName()
@@ -4942,6 +4976,18 @@ end)()
                     logLine("[☯️] ยังไม่มี Yin/Yang Half ในแมพ (Phase: " .. tostring(lastPhase)
                         .. ") -> รอของเกิด")
                 end
+            end
+            return
+        end
+
+        -- ⭐ r49o : พิธีอยู่ใน Phase "Cooldown" (ประตูเปิดรอบก่อนไปแล้ว = รอบ "ใช้ไปแล้ว") ->
+        --    ของที่เกิดตอนนี้ = ของรอบที่ยังไม่เปิดจริง -> ห้ามเก็บ/ห้ามวาร์ป (ผู้ใช้ : "มันดัน
+        --    เก็บ + วาปไปเปิด ทั้งที่ยังครูดาวอยู่ -> ระบบพัง") -> รอพิธีเปลี่ยน Phase ค่อยเก็บ
+        if cdPhase then
+            if os.clock() - yyCdLogAt > 20 then
+                yyCdLogAt = os.clock()
+                logLine("[☯️] พิธีอยู่ใน Phase Cooldown (เปิดประตูรอบก่อนแล้ว) -> ไม่เก็บของรอบนี้ รอรอบใหม่")
+                setStatus("หยิน-หยาง : รอรอบพิธีใหม่ (Cooldown)", C.Amber)
             end
             return
         end
@@ -5237,7 +5283,7 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r49m ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r49o ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
@@ -5260,6 +5306,8 @@ end)()
     local caveOn       = false   -- 🚪 เปิด/ปิดระบบถ้ำ (ค่าเริ่มต้น "ปิด" — ต้องกดปุ่ม)
     local caveBtn      = nil     -- ปุ่ม 🚪
     local placedRound  = false   -- วางครบรอบนี้แล้ว (กันยิงซ้ำรอบเดิม)
+    local placedRoundAt = 0      -- 🕐 ตั้งเวลาตอนวางแล้ว (r49n: watchdog 60 วิ กันธงค้างถาวร)
+    local caveStepActive = false -- 🔄 กำลังรัน caveStep อยู่ (รู้สถานะตอนกดปิดกลางเที่ยว)
     local eggAlerted   = false   -- 🔔 แจ้ง "ไข่ในถ้ำ" แล้ว (รีเซ็ตเมื่อไข่หายไป)
     local eggRetryAt   = 0       -- ⏳ เก็บไข่ไม่สำเร็จ -> ถอยก่อน ไม่ยิงรัว
     local eggWarnAt    = 0       -- ⏱️ throttle แจ้งเตือนแดง "เก็บไข่ยังไม่เข้า" (ทุก 45 วิ)
@@ -5445,9 +5493,12 @@ end)()
                         .. " / ยิงต้อง ≤ " .. math.floor(range * 0.8) .. ")")
                     local budget = math.max(CFG.YY_FLY_TIME, d3 / CFG.FLY_SPEED + 3)
                     flyTo(hover(al2.Position), CFG.FLY_SPEED, budget)
+                    if not caveOn then return false end  -- ⭐ r49n: กดปิดกลางเที่ยว -> หยุดจริง ไม่บินต่อ
                     return false             -- ถึงแล้วค่อยยิงรอบถัดไป (กันยิงตอนยังไม่เข้าระยะ)
                 end
 
+                -- ⭐ r49n: กดปิดตอนกำลังจะยิง -> ไม่ยิง (ผีค้างหลังกดปิด = "ระบบรวน" ที่ user แจ้ง)
+                if not caveOn then return false end
                 local phase0 = nil           -- Phase "ก่อนยิงฝั่งนี้" — เทียบเฉพาะฝั่งตัวเอง กันปลอมสำเร็จ
                 pcall(function() phase0 = r:GetAttribute("Phase") end)
                 setStatus("🚪 วาง " .. side .. " ที่แท่น", C.Amber)
@@ -5480,9 +5531,11 @@ end)()
 
         if not didAny then                   -- attrs ไม่ true ทั้งคู่แล้ว = วางไปก่อนหน้าแล้วรอบนี้
             placedRound = true
+            placedRoundAt = os.clock()       -- ⏱️ r49n: ให้ watchdog รู้ว่า "จำรอบ" เริ่มเมื่อไหร่
             return true
         end
         placedRound = true
+        placedRoundAt = os.clock()
         setStatus("🚪 ถ้ำเปิดแล้ว", C.Green)
         logLine("[🚪] วาง Yin/Yang ครบ -> ประตูถ้ำเปิด (รอบนี้จบ · รอไข่ Headless ในถ้ำ 1/1000)")
         fireAlert("🚪 ถ้ำเปิดแล้ว", "วาง Yin/Yang ครบ → ประตูถ้ำเปิด!\nถ้ามีไข่ Headless ในถ้ำ = เก็บให้ก่อน")
@@ -5569,10 +5622,36 @@ end)()
         end
         if placedRound then
             CAVE_BUSY = false                  -- r49d: รอบนี้วางแล้ว -> ปล่อย (งานไข่ตั้งเองเมื่อเจอไข่)
+            -- ⭐ r49n : watchdog — ธง "วางแล้ว" รีเซ็ตเฉพาะตอนลูป 2 วิเห็น attrs เป็น false (~2 วิ)
+            --    ถ้าคู่ใหม่เข้าตัวทันที/ลูปพลาดจังหวะ = ค้างเงียบถาวร (ล็อก 15/10 10:09:33 ->
+            --    10:18:39 = ถือ Yin+Yang ครบ 9 นาที ไม่วาง -> user : "ไม่ยอมไปเปิดประตู")
+            --    เกิน 60 วิ ทั้งที่ยังถือครบ = ประเมินรอบใหม่ (พลาดจังหวะรีเซ็ต = ปลดเอง)
+            if (yin and yang) and os.clock() - placedRoundAt > 60 then
+                placedRound = false
+                logLine("[🚪] ถือ Yin+Yang ค้างนานหลังวางรอบก่อน ("
+                    .. math.floor(os.clock() - placedRoundAt)
+                    .. " วิ) -> ประเมินรอบใหม่ (ธงค้างเพราะพลาดจังหวะรีเซ็ต)")
+            end
             return
         end
         if os.clock() < placeRetryAt then
             return                             -- (CAVE_BUSY ยังค้าง true -> แคนดี้หยุดรอ ไม่ฉกตัว)
+        end
+        -- ⭐ r49o : ประตูเปิดรอบก่อนไปแล้ว (Phase "Cooldown" = รอบ "ใช้ไปแล้ว") -> ห้ามวาร์ป/ยิงวาง
+        --    (ผู้ใช้ : ของดันเกิดใหม่ตอนครูดาว -> ระบบไปเก็บ+วาง ทั้งที่รอบใช้ไปแล้ว -> พัง)
+        --    รอพิธีเปลี่ยน Phase (Closed -> AwaitingHalf) = รอบใหม่จริง ค่อยวาง (เฝ้าตาเฉย ๆ)
+        local phCd = nil
+        pcall(function()
+            local rC = ritualRoot()
+            phCd = rC and rC:GetAttribute("Phase")
+        end)
+        if phCd == "Cooldown" then
+            if os.clock() - placeLogAt > 30 then
+                placeLogAt = os.clock()
+                logLine("[🚪] พิธีอยู่ใน Phase Cooldown (เปิดประตูรอบก่อนแล้ว) -> ไม่วาร์ปไปวาง รอรอบใหม่")
+                setStatus("ถ้ำ : รอรอบพิธีใหม่ (Cooldown)", C.Amber)
+            end
+            return
         end
         if isFarming or isGrabbing then        -- ครึ่งที่ถืออยู่ไม่มีอายุ -> รอฟาร์มไข่จบได้
             if os.clock() - placeLogAt > 30 then
@@ -5622,8 +5701,11 @@ end)()
             setStatus("ถ้ำ : เปิด", C.Amber)
         else
             caveBtn.BackgroundColor3 = C.Off
-            CAVE_BUSY = false                  -- r49d: ปิดแล้วปล่อยทันที (ค้างไว้ = แคนดี้/☯️ หยุดถาวร)
-            logLine("[🚪] ปิดระบบถ้ำ")
+            -- ⭐ r49n: ถ้ามีเที่ยวค้าง (บิน/ยิงอยู่) = ยังไม่ปล่อยธง — ปล่อยทันทีแบบเดิมทำให้
+            --    🍬/☯️ แย่งตัวกลางเที่ยว = "ระบบรวน" · ธงปล่อยที่ลูปด้านล่างตอนเที่ยวจบ
+            CAVE_BUSY = caveStepActive
+            logLine("[🚪] ปิดระบบถ้ำ"
+                .. (caveStepActive and " (รอเที่ยวที่ค้างจบก่อนปล่อยตัว)" or ""))
             setStatus("ถ้ำ : ปิด")
         end
     end)
@@ -5632,7 +5714,7 @@ end)()
     CAVE_STOP = function(reason)
         if not caveOn then return end
         caveOn = false
-        CAVE_BUSY = false                      -- r49d: สั่งปิดโดยฟาร์มไข่ -> ปล่อยทันที ไม่ค้างคา
+        CAVE_BUSY = caveStepActive             -- r49n: เที่ยวค้าง = ปล่อยตอนจบเที่ยว (ไม่มีเที่ยว = เท่าเดิม)
         caveBtn.BackgroundColor3 = C.Off
         logLine("[🚪] ปิดระบบถ้ำ -> เปิด " .. tostring(reason)
             .. " (เปิดใหม่ = ระบบตรวจรอบใหม่ให้เอง)")
@@ -5645,7 +5727,11 @@ end)()
             task.wait(2.0)
             if not sg.Parent then break end          -- ปิดหน้าต่างแล้ว = หยุด
             if caveOn then                     -- r49d: เอา not CAVE_BUSY ออก (CAVE_BUSY ค้างข้ามรอบได้ —
-                local ok, err = pcall(caveStep) --    ลูปนี้ thread เดียว pcall กันซ้ำอยู่แล้ว ไม่ต้องเช็ก)
+                caveStepActive = true          --    ลูปนี้ thread เดียว pcall กันซ้ำอยู่แล้ว ไม่ต้องเช็ก)
+                local ok, err = pcall(caveStep)
+                caveStepActive = false
+                -- r49n: กดปิด/CAVE_STOP กลางเที่ยว -> เที่ยวจบแล้วค่อยปล่อยธง (แคนดี้/☯️ แย่งตัวไม่ได้)
+                if not caveOn then CAVE_BUSY = false end
                 if not ok and os.clock() - errLogAt > 15 then
                     errLogAt = os.clock()
                     logLine("[!] 🚪 ระบบถ้ำ error : " .. tostring(err))
@@ -5654,7 +5740,7 @@ end)()
         end
     end)
 
-    logLine("[OK] 🚪 r49m ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
+    logLine("[OK] 🚪 r49o ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
         .. " · ถือ Yin+Yang ครบ = บินวางที่แท่นอัตโนมัติ (fireproximityprompt — ไม่ต้องกด E/Y เอง)"
         .. " · ไข่ Headless Egg ในถ้ำ = เก็บก่อนแคนดี้ (ลอยเหนือยิง client ก่อน → ไม่เข้าค่อยใช้ระบบไข่)"
         .. " · เก็บไม่เข้า = แจ้งดังทุก 45 วิ ไม่หายเงียบ")
