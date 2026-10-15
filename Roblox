@@ -149,6 +149,18 @@
 --                เปิดประตู = ทักผิดจังหวะ 15/10 10:51:26 ที่ user งง) -> พ้น Cooldown ค่อยแจ้ง
 --              · ยกเลิก "ไม่ใส่ phase gate" ของ r49n เฉพาะกรณี Cooldown (ตามคำสั่งผู้ใช้ —
 --                รอบ Closed/AwaitingHalf ยังวางได้ตามเดิม ไม่กันพลาดเปล่า)
+--      · r49u : ⚡🍬 เร่ง ~2 เท่า + "ยิงแล้วไม่ยืนรอ" (ผู้ใช้ 16/10 : "ยิงคำสั่งเก็บทีเดียว
+--              วาปกลับเลย ไม่ต้องเช็คว่าเข้าตัวยัง · เร่งให้เก็บแคนดี้เร็วกว่านี้ 2 เท่า") :
+--              · ยิงแล้ว = จำเป็น pend แล้วจบเที่ยว — ไม่มี task.wait รอผล -> สรุปตอน
+--                รอบถัด (ตอนวิ่งกลับอ่าน car ใหม่) : car>0 = นับ+log "เก็บ #N ได้ X แต้ม" ·
+--                เกิน 1.2 วิ ยัง 0 = ไม่เข้าตัว -> noteFireFail (ซ้ำ 2 -> ข้ามเป้า 6 วิ)
+--              · คูลดาวน์ 2 วิ "ย้ายออกจากลูป" -> เช็คเฉพาะก่อนยิง : ยิงปุ๊บขั้น A (วาปกลับ
+--                ไปฝาก) ทำงานได้ทันทีรอบถัด (เดิมลูปบล็อกทั้งดุ้น = ยืนนิ่ง ~2 วิ/รอบ)
+--              · วาร์ป "ถึงระยะแล้ว" = ยิงรอบนี้เลย (แบบ ☯️ r49l) ไม่รอรอบถัด 0.3 วิ ·
+--                ฝาก task.wait(1.2) ตายตัว -> poll 0.1 วิ (เพดาน 1.2 วิเท่าเดิม —
+--                เซิร์ฟยืนยันเร็ว = ไปต่อทันที หมดเวลา = ขั้นสอง/พัก30วิ เหมือนเดิม) ·
+--                CANDY_WAIT 0.5 -> 0.3
+--              · คงเดิม : MIN=1 (r49t) · ขาไปวาปตรง (r49s) · ขากลับซอยช่วง · skip 6 วิ
 --      · r49p : Headless Egg (ไข่ในถ้ำ 1/1000) = "ส่งที่จุดเดียวกับแคนดี้" (ผู้ใช้สั่ง 15/10) :
 --              · placeHeldEgg (จุดเดียวของทุกเส้นทาง — ถ้ำ 🚪 + ฟาร์มไข่ ผ่านที่นี่) :
 --                ถือ Headless -> หาแท็กจริง HalloweenCandyDeposit (ใกล้สุด) -> วาร์ป hover
@@ -241,7 +253,7 @@ local CFG = {
 
     -- 🍬 r27 : ระบบเก็บแคนดี้ฮาโลวีน (ค่าจริงจาก GameData.Halloween)
     CANDY_ON         = false, -- เริ่ม "ปิด" → กดปุ่ม 🍬 เพื่อเปิด
-    CANDY_WAIT       = 0.5,   -- หน่วงสแกนหาแคนดี้ (วินาที)
+    CANDY_WAIT       = 0.3,   -- r49u (เร่ง 2 เท่า): เดิม 0.5 — หน่วงสแกน/สเตป ยิ่งถี่ เก็บ+ฝากไวขึ้น ~0.6-1 วิ/รอบ
     CANDY_RANGE      = 35,    -- PickupRange จริงของเกม (studs)
     CANDY_COOLDOWN   = 2.15,  -- เกมคูลดาวน์ 2 วิ → เว้น +0.15 กันชน
     CANDY_FLY        = true,  -- บินไปหาเมื่ออยู่นอกระยะ (สลับกับฟาร์มไข่ — เลือกได้ทีละระบบ)
@@ -4270,6 +4282,10 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
     local skipSpawn     = nil  -- r49t : เป้าที่ถูกข้ามชั่วคราว (ยืนยิงมั่ว = "ยืนนิ่งนาน")
     local skipUntil     = 0
     local failLogAt     = 0    -- กัน spam ลอจ "ยิงแล้วเกมไม่รับ"
+    local candyPend     = false -- r49u : ยิงแล้วยังไม่สรุปผล (ไม่ยืนรอ — สรุปตอนรอบถัดมาอ่าน car ใหม่)
+    local candyPendSpawn = nil
+    local candyPendVal  = 0
+    local candyPendDist = 0
 
     local function hrp()
         local ch = player.Character
@@ -4593,6 +4609,24 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                                    or "กำลังเก็บไข่ -> ไม่วาร์ป")))
         end
 
+        -- ✅ r49u : สรุปผลยิงรอบก่อน "แบบไม่รอ" — วิ่งทุก 0.3 วิ ตอนอ่าน car ใหม่
+        --    car > 0 = เข้าตัวจริง -> นับยอด + log · เกิน 1.2 วิ ยัง 0 = ไม่เข้า -> ข้ามเป้า
+        --    (ไม่มี task.wait รอผล = ยิงแล้ว A วาปกลับทันทีรอบถัด ไม่ยืนรอ — ตามคำสั่งผู้ใช้)
+        if candyPend then
+            if car > 0 then
+                candyGot = candyGot + 1
+                candyTokens = candyTokens + candyPendVal
+                trySpawn, tryCnt = nil, 0
+                candyPend = false
+                setStatus("🍬 รวม " .. candyTokens .. " แต้ม (เก็บ " .. candyGot .. " ครั้ง)", C.Green)
+                logLine("[🍬] เก็บ #" .. candyGot .. " ได้ " .. candyPendVal .. " แต้ม (รวม "
+                    .. candyTokens .. ") ที่ " .. math.floor(candyPendDist) .. " studs -> ถือ " .. car)
+            elseif os.clock() - candyLastAt > 1.2 then
+                candyPend = false
+                noteFireFail(candyPendSpawn, candyPendVal, candyPendDist, "ค่าถือไม่เพิ่ม")
+            end
+        end
+
         if held then
             -- ⛔ กติกาเกม L301 : IsLocalCarrying() = เก็บแคนดี้ไม่ได้เลย
             if os.clock() - holdLogAt > 20 then
@@ -4628,15 +4662,24 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                 local stopClip = startNoClip()
                 pcall(function() teleportTo(CFrame.new(hi)) end)
                 stopClip()
-                task.wait(1.2)
+                -- ⏱️ r49u (เร่ง 2 เท่า) : รอแบบ poll 0.1 วิ — เซิร์ฟยืนยันเร็วก็ไปต่อทันที
+                --    เพดานยัง 1.2 วิ เท่าเดิม (หมดเวลา = ยังไม่ลด -> ขั้นสอง/พัก30วิ เหมือนเดิม)
                 local after = carriedCandy()
+                local tw = os.clock()
+                while after >= car and os.clock() - tw < 1.2 do
+                    task.wait(0.1)
+                    after = carriedCandy()
+                end
                 -- ขั้นสอง (เฉพาะลอยแล้วยังไม่เข้า) : ลดตัว "ทีเดียว" แบบมีชนิดกัน
                 --    noclip หยุดไปแล้วตอนนี้ -> การชนิดจะกันไม่ให้จมดินติด
                 if after >= car then
                     local low = dp + Vector3.new(0, 6 + mountHeight() * 0.5, 0)
                     pcall(function() teleportTo(CFrame.new(low)) end)
-                    task.wait(1.2)
-                    after = carriedCandy()
+                    tw = os.clock()
+                    while after >= car and os.clock() - tw < 1.2 do
+                        task.wait(0.1)
+                        after = carriedCandy()
+                    end
                 end
                 if after >= car then
                     depositFailAt = os.clock()
@@ -4693,6 +4736,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         end
 
         if dist > CFG.CANDY_RANGE then
+            local arrived = false
             if CFG.CANDY_FLY and canMove then
                 -- (r49g: คืนการบินปกติ — r49f เค้า "ไม่บินถ้า not isReady" แต่ค่าจริงของ
                 --  CandyPromptAvailable = "prompt อยู่ในระยะ" ไม่ใช่ "สุก" -> ของไกลอ่านว่า
@@ -4715,7 +4759,10 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                 local h2 = hrp()
                 if h2 then
                     local left = (h2.Position - pos).Magnitude
-                    if left > CFG.CANDY_RANGE and os.clock() - flyLogAt < 12 then
+                    if left <= CFG.CANDY_RANGE then
+                        arrived = true
+                        dist = left    -- ระยะจริงหลังวาป = ใช้ในล็อกขั้นยิงด้านล่าง
+                    elseif os.clock() - flyLogAt < 12 then
                         logLine("[!] วาร์ปแล้วยังห่าง " .. math.floor(left)
                             .. " studs -> อาจโดนเซิร์ฟเวอร์ดีดตำแหน่งกลับ")
                     end
@@ -4727,33 +4774,27 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
                     .. (isFarming and "กำลังฟาร์มไข่" or "กำลังเก็บไข่")
                     .. " -> ไม่วาร์ป (ไม่แย่งตัว)")
             end
-            return
+            -- ⭐ r49u (เร่ง 2 เท่า) : วาร์ป "ถึงระยะแล้ว" = ยิงรอบนี้เลย (แบบ ☯️ r49l)
+            --    ไม่รอรอบถัด 0.3 วิ — ถ้าโดนดีด/ยังไม่ถึง = return เหมือนเดิม (วาร์ปซ้ำรอบถัด)
+            if not arrived then return end
         end
 
-        local before = carriedCandy()
+        -- ⏱️ r49u : คูลดาวน์ 2 วิ ของเกม — เช็คตรงนี้ (ย้ายมาจากลูป) เพื่อให้ A (วาปกลับ
+        --    ไปฝาก) ทำงานได้ "ทันทีหลังยิง" ไม่ต้องรอครบ 2 วิ (ผู้ใช้ : ยิงแล้ววาปกลับเลย ·
+        --    gate อยู่หลังการวาป = รอคูลดาวน์พร้อมกับเดินทาง ไม่เสียเวลายืน)
+        if os.clock() - candyLastAt < CFG.CANDY_COOLDOWN then return end
         local ok, code, extra = fireOn(spawn)
         candyLastAt = os.clock()
         candyMidTrip = false   -- ยิงแล้ว -> จบเที่ยว (เที่ยวถัดไป A จะส่งบ้าน แล้วค่อยหยุดรอ ☯️)
-        if not ok then
+        if ok then
+            -- 📥 r49u : ไม่ยืนรอผล (ผู้ใช้สั่ง) — จำไว้แล้วสรุปตอนรอบถัดมาอ่าน car ใหม่
+            --    (0.5-1.5 วิ โดยไม่หยุดนิ่ง — เดิม task.wait(0.5) กลางหน้า = ยืนรอเปล่า ๆ)
+            candyPend, candyPendSpawn = true, spawn
+            candyPendVal, candyPendDist = val, dist
+        else
             noteFireFail(spawn, val, dist,
                 code .. (extra ~= nil and (" " .. tostring(extra)) or ""))
-            return
         end
-        -- ⏱️ r49t : รอเซิร์ฟยืนยันจริง 0.5 วิ — ค่าถือเพิ่ม = เข้าตัวจริง · เดิม log "เก็บ"
-        --    ขึ้นจากการ "ยิงสำเร็จ" อย่างเดียว -> ชิ้นที่ 2+ โดนปัดทิ้งแต่ log ว่าได้
-        task.wait(0.5)
-        local car2 = carriedCandy()
-        local got = car2 - before
-        if got <= 0 then
-            noteFireFail(spawn, val, dist, "ยิงแล้วค่าถือไม่เพิ่ม")
-            return
-        end
-        candyGot = candyGot + 1
-        candyTokens = candyTokens + got
-        trySpawn, tryCnt = nil, 0
-        setStatus("🍬 รวม " .. candyTokens .. " แต้ม (เก็บ " .. candyGot .. " ครั้ง)", C.Green)
-        logLine("[🍬] เก็บ #" .. candyGot .. " ได้ " .. got .. " แต้ม (รวม "
-            .. candyTokens .. ") ที่ " .. math.floor(dist) .. " studs -> ถือ " .. car2)
     end
 
     -- ── ปุ่ม 🍬 ในแถบปุ่ม (เพิ่มท้ายแถว — LayoutOrder 4) ──
@@ -4802,7 +4843,9 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
     task.spawn(function()
         while true do
             task.wait(CFG.CANDY_WAIT)
-            if candyEnabled and os.clock() - candyLastAt >= CFG.CANDY_COOLDOWN then
+            -- r49u : คูลดาวน์หลังยิง ย้ายเข้าไปเช็คเฉพาะ "ก่อนยิง" ใน candyStep แล้ว —
+            --    เดิมบล็อกลูปทั้งดุ้น 2.15 วิ = ยิงแล้ว "ยืนนิ่ง" ก่อนขั้นวาปกลับ (ผู้ใช้สั่ง ห้ามรอ)
+            if candyEnabled then
                 CANDY_MOVING = true              -- 🤝 บอก ☯️ ว่ากำลังบิน/ส่งบ้านอยู่ (ห้ามแย่งตัว)
                 local ok, err = pcall(candyStep)
                 CANDY_MOVING = false
@@ -4814,7 +4857,7 @@ print("[EGG LITE r26] loaded - anti-AFK from 2.lua (Idled->VirtualUser anti-kick
         end
     end)
 
-    logLine("[OK] 🍬 r49t ระบบเก็บแคนดี้พร้อม (ปุ่ม 🍬 ท้ายแถบ) - เริ่ม" ..
+    logLine("[OK] 🍬 r49u ระบบเก็บแคนดี้พร้อม (ปุ่ม 🍬 ท้ายแถบ) - เริ่ม" ..
         (candyEnabled and "เปิด" or "ปิด") .. " · ⭐ สแกนทั้งแมพ = แต้มสูงสุดก่อน (เห็นอันไหนเยอะสุด)"
         .. " · ⭐ กติกาเกมถือทีละ 1 ชิ้น = เก็บแล้วไปฝากทันที · ⭐ ยิง Verify จริง"
         .. " (ไม่รับ = ซ้ำ 1 แล้วข้าม 6 วิ ไม่ยืนมั่ว) · ⭐ ลอยเหนือ " .. CFG.CANDY_HOVER
@@ -5436,7 +5479,7 @@ end)()
         end
     end)
 
-    logLine("[OK] ☯️ r49t ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
+    logLine("[OK] ☯️ r49u ฟาร์มหยิน-หยางพร้อม (ปุ่ม ☯️ + ESP ปุ่ม ☯️ ขวาสุด) - เริ่ม"
         .. (yyEnabled and "เปิด" or "ปิด") .. " · เก็บ Yin/Yang Half อย่างเดียว (ยิงแนวนอน ≤ "
         .. CFG.YY_PICK_RANGE .. " · กดค้างตาม HoldDuration จริง) · ของยังไม่เกิด = รอเฉย ๆ"
         .. " · ⭐ ลอยเหนือ " .. CFG.YY_HOVER .. " studs ห้ามลดตัวลงไป (กันสัตว์จมดินติด)"
@@ -5893,7 +5936,7 @@ end)()
         end
     end)
 
-    logLine("[OK] 🚪 r49t ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
+    logLine("[OK] 🚪 r49u ระบบเปิดถ้ำพร้อม - " .. (caveOn and "เปิด" or "ปิดอยู่ (กด 🚪 เพื่อเปิด)")
         .. " · ถือ Yin+Yang ครบ = บินวางที่แท่นอัตโนมัติ (fireproximityprompt — ไม่ต้องกด E/Y เอง)"
         .. " · ไข่ Headless Egg ในถ้ำ = เก็บก่อนแคนดี้ (ลอยเหนือยิง client ก่อน → ไม่เข้าค่อยใช้ระบบไข่)"
         .. " · เก็บไม่เข้า = แจ้งดังทุก 45 วิ ไม่หายเงียบ")
